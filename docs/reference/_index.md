@@ -1,6 +1,6 @@
 ---
 title: Reference
-description: KubeVault Reference
+description: KubeDB Reference
 menu:
   docs_{{ .version }}:
     identifier: reference
