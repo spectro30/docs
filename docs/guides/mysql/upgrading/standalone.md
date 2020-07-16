@@ -12,7 +12,7 @@ section_menu_id: guides
 
 > :warning: **This doc is only for KubeDB Enterprise**: You need to be an enterprise user!
 
-# Upgrade MySQL Standalone using KubeDB enterprise operator
+# Upgrade MySQL Standalone
 
 This guide will show you how to use `KubeDB` enterprise operator to upgrade the `MySQL` Standalone.
 
