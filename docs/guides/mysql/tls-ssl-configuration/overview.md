@@ -43,7 +43,7 @@ The subject of `client.pem` certificate is added as `root` user in mysql databas
 The following figure shows how to configure TLS/SSL in MySQL using `KubeDB` enterprise. Open the image in a new tab to see the enlarged version.
 
 <figure align="center">
-  <img alt="Stash Backup Flow" src="/docs/images/day-2-operation/tls-tls.png">
+  <img alt="Stash Backup Flow" src="/docs/images/day-2-operation/mysql/my-tls-ssl.png">
 <figcaption align="center">Fig: Deploy MySQL with TLS/SSL</figcaption>
 </figure>
 

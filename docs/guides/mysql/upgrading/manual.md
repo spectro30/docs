@@ -2,7 +2,7 @@
 title: Upgrading MySQL
 menu:
   docs_{{ .version }}:
-    identifier: my-upgrade-manul
+    identifier: my-upgrading-mysql-manul
     name: Manual
     parent: my-upgrading-mysql
     weight: 10

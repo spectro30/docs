@@ -10,7 +10,7 @@ menu_name: docs_{{ .version }}
 section_menu_id: guides
 ---
 
-> :warning: **This doc is only for KubeDB Enterprise**: You need to be an enterprise user!
+{{< notice type="warning" message="Vertical scaling is an Enterprise feature of KubeDB. You must have KubeDB Enterprise operator installed to test this feature." >}}
 
 # Vertical Scaling MySQL
 
@@ -27,7 +27,7 @@ This guide will show you how KubeDB enterprise operator used to update resources
 The following diagram shows how KubeDB enterprise operator used to update the resources of the nodes of the `MySQL` group replication. Open the image in a new tab to see the enlarged version.
 
 <figure align="center">
-  <img alt="Stash Backup Flow" src="/docs/images/day-2-operation/ops_req-vertical_scale%20.svg">
+  <img alt="Stash Backup Flow" src="/docs/images/day-2-operation/mysql/my-vertical_scaling.png">
 <figcaption align="center">Fig: Vertical scaling process of MySQL group replication</figcaption>
 </figure>
 

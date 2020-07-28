@@ -2,15 +2,15 @@
 title: Vertical Scaling MySQL standalone
 menu:
   docs_{{ .version }}:
-    identifier: my-vertical-scale-standalone
-    name: my-vertical-scale-standalone
+    identifier: my-vertical-scaling-standalone
+    name: Vertical Scaling Group Replication
     parent: my-upgrading-mysql
     weight: 40
 menu_name: docs_{{ .version }}
 section_menu_id: guides
 ---
 
-> :warning: **This doc is only for KubeDB Enterprise**: You need to be an enterprise user!
+{{< notice type="warning" message="Vertical scaling is an Enterprise feature of KubeDB. You must have KubeDB Enterprise operator installed to test this feature." >}}
 
 # Vertical Scale MySQL Standalone
 
@@ -25,6 +25,7 @@ This guide will show you how to use `KubeDB` enterprise operator to update the r
 - You should be familiar with the following `KubeDB` concepts:
   - [MySQL](/docs/concepts/databases/mysql.md)
   - [MySQLOpsRequest](/docs/concepts/day-2-operations/mysqlopsrequest.md)
+  - [Vertical Scaling Overview](/docs/guides/mysql/scaling/vertical-scaling/overview.md)
 
 To keep everything isolated, we are going to use a separate namespace called `demo` throughout this tutorial.
 
@@ -33,7 +34,7 @@ $ kubectl create ns demo
 namespace/demo created
 ```
 
-> **Note:** YAML files used in this tutorial are stored in [docs/examples/day-2-operations](/docs/examples/day-2-operations) directory of [stashed/docs](https://github.com/stashed/docs) repository.
+> **Note:** YAML files used in this tutorial are stored in [docs/examples/day-2-operations](/docs/examples/day-2-operations) directory of [kubedb/docs](https://github.com/kubedb/docs) repository.
 
 ### Apply Vertical Scaling on Standalone
 
@@ -46,29 +47,29 @@ When you have installed `KubeDB`, it has created `MySQLVersion` crd for all supp
 ```console
 $ kubectl get mysqlversion
 NAME        VERSION   DB_IMAGE                 DEPRECATED   AGE
-5           5         kubedb/mysql:5           true         49s
-5-v1        5         kubedb/mysql:5-v1        true         49s
-5.7         5.7       kubedb/mysql:5.7         true         49s
-5.7-v1      5.7       kubedb/mysql:5.7-v1      true         49s
-5.7-v2      5.7.25    kubedb/mysql:5.7-v2      true         49s
-5.7-v3      5.7.25    kubedb/mysql:5.7.25      true         49s
-5.7-v4      5.7.29    kubedb/mysql:5.7.29                   49s
-5.7.25      5.7.25    kubedb/mysql:5.7.25      true         49s
-5.7.25-v1   5.7.25    kubedb/mysql:5.7.25-v1                49s
-5.7.29      5.7.29    kubedb/mysql:5.7.29                   49s
-8           8         kubedb/mysql:8           true         49s
-8-v1        8         kubedb/mysql:8-v1        true         49s
-8.0         8.0       kubedb/mysql:8.0         true         49s
-8.0-v1      8.0.3     kubedb/mysql:8.0-v1      true         49s
-8.0-v2      8.0.14    kubedb/mysql:8.0-v2      true         49s
-8.0-v3      8.0.20    kubedb/mysql:8.0.20                   49s
-8.0.14      8.0.14    kubedb/mysql:8.0.14      true         49s
-8.0.14-v1   8.0.14    kubedb/mysql:8.0.14-v1                49s
-8.0.18      8.0.18    kubedb/mysql:8.0.18                   49s
-8.0.19      8.0.19    kubedb/mysql:8.0.19                   49s
-8.0.20      8.0.20    kubedb/mysql:8.0.20                   49s
-8.0.3       8.0.3     kubedb/mysql:8.0.3       true         49s
-8.0.3-v1    8.0.3     kubedb/mysql:8.0.3-v1                 49s
+5           5         kubedb/mysql:5           true         149m
+5-v1        5         kubedb/mysql:5-v1        true         149m
+5.7         5.7       kubedb/mysql:5.7         true         149m
+5.7-v1      5.7       kubedb/mysql:5.7-v1      true         149m
+5.7-v2      5.7.25    kubedb/mysql:5.7-v2      true         149m
+5.7-v3      5.7.25    kubedb/mysql:5.7.25      true         149m
+5.7-v4      5.7.29    kubedb/mysql:5.7.29      true         149m
+5.7.25      5.7.25    kubedb/mysql:5.7.25      true         149m
+5.7.25-v1   5.7.25    kubedb/mysql:5.7.25-v1                149m
+5.7.29      5.7.29    kubedb/mysql:5.7.29                   149m
+5.7.31      5.7.31    kubedb/mysql:5.7.31                   149m
+8           8         kubedb/mysql:8           true         149m
+8-v1        8         kubedb/mysql:8-v1        true         149m
+8.0         8.0       kubedb/mysql:8.0         true         149m
+8.0-v1      8.0.3     kubedb/mysql:8.0-v1      true         149m
+8.0-v2      8.0.14    kubedb/mysql:8.0-v2      true         149m
+8.0-v3      8.0.20    kubedb/mysql:8.0.20      true         149m
+8.0.14      8.0.14    kubedb/mysql:8.0.14      true         149m
+8.0.14-v1   8.0.14    kubedb/mysql:8.0.14-v1                149m
+8.0.20      8.0.20    kubedb/mysql:8.0.20                   149m
+8.0.21      8.0.21    kubedb/mysql:8.0.21                   149m
+8.0.3       8.0.3     kubedb/mysql:8.0.3       true         149m
+8.0.3-v1    8.0.3     kubedb/mysql:8.0.3-v1                 149m
 ```
 
 The version above that does not show `DEPRECATED` `true` is supported by `KubeDB` for `MySQL`. Now we will select a version from `MySQLVersion` for `MySQL` standalone. For `MySQL` standalone deployment, we will select version `8.0.20`.

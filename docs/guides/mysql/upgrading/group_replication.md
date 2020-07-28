@@ -2,19 +2,19 @@
 title: Upgrading MySQL group replication
 menu:
   docs_{{ .version }}:
-    identifier: my-upgrade-group
-    name: my-upgrade-group
+    identifier: my-upgrading-mysql-group
+    name: Upgrading MySQL Group Replication
     parent: my-upgrading-mysql
     weight: 20
 menu_name: docs_{{ .version }}
 section_menu_id: guides
 ---
 
-> :warning: **This doc is only for KubeDB Enterprise**: You need to be an enterprise user!
+{{< notice type="warning" message="Upgrading is an Enterprise feature of KubeDB. You must have KubeDB Enterprise operator installed to test this feature." >}}
 
 # Upgrade MySQL Group Replication
 
-This guide will show you how to use `KubeDB` enterprise operator to upgrade the `MySQL` Group Replication.
+This guide will show you how to use `KubeDB` enterprise operator to upgrade the version of `MySQL` Group Replication.
 
 ## Before You Begin
 
@@ -25,6 +25,7 @@ This guide will show you how to use `KubeDB` enterprise operator to upgrade the 
 - You should be familiar with the following `KubeDB` concepts:
   - [MySQL](/docs/concepts/databases/mysql.md)
   - [MySQLOpsRequest](/docs/concepts/day-2-operations/mysqlopsrequest.md)
+  - [Upgrading Overview](/docs/guides/mysql/upgrading/overview.md)
 
 To keep everything isolated, we are going to use a separate namespace called `demo` throughout this tutorial.
 
@@ -33,60 +34,66 @@ $ kubectl create ns demo
 namespace/demo created
 ```
 
-> **Note:** YAML files used in this tutorial are stored in [docs/examples/day-2-operations](/docs/examples/day-2-operations) directory of [stashed/docs](https://github.com/stashed/docs) repository.
+> **Note:** YAML files used in this tutorial are stored in [docs/examples/day-2-operations](/docs/examples/day-2-operations) directory of [kubedb/docs](https://github.com/kubedb/docs) repository.
 
-### Upgrade MySQL Group Replication
+### Apply Version Upgrading on Group Replication
 
-Here, we are going to deploy a  `MySQL` group replication using a supported version by `KubeDB` operator. Below two sections will check the supported `MySQL` versions and then check whether it is possible to upgrade from this version to another.
+Here, we are going to deploy a `MySQL` group replication using a supported version by `KubeDB` operator. Then we are going to apply upgrading on it.
+
+#### Prepare Group Replication
+
+At first, we are going to deploy a group replication using supported that `MySQL` version whether it is possible to upgrade from this version to another. In the next two section we are going to find out supported version and version upgrade constraints.
 
 **Find supported MySQL Version:**
 
-When you have installed `KubeDB`, it has created `MySQLVersion` crd for all supported `MySQL` versions. Let's check support versions,
+When you have installed `KubeDB`, it has created `MySQLVersion` cr for all supported `MySQL` versions. Let’s check the supported `MySQL` versions,
 
 ```console
 $ kubectl get mysqlversion
 NAME        VERSION   DB_IMAGE                 DEPRECATED   AGE
-5           5         kubedb/mysql:5           true         49s
-5-v1        5         kubedb/mysql:5-v1        true         49s
-5.7         5.7       kubedb/mysql:5.7         true         49s
-5.7-v1      5.7       kubedb/mysql:5.7-v1      true         49s
-5.7-v2      5.7.25    kubedb/mysql:5.7-v2      true         49s
-5.7-v3      5.7.25    kubedb/mysql:5.7.25      true         49s
-5.7-v4      5.7.29    kubedb/mysql:5.7.29                   49s
-5.7.25      5.7.25    kubedb/mysql:5.7.25      true         49s
-5.7.25-v1   5.7.25    kubedb/mysql:5.7.25-v1                49s
-5.7.29      5.7.29    kubedb/mysql:5.7.29                   49s
-8           8         kubedb/mysql:8           true         49s
-8-v1        8         kubedb/mysql:8-v1        true         49s
-8.0         8.0       kubedb/mysql:8.0         true         49s
-8.0-v1      8.0.3     kubedb/mysql:8.0-v1      true         49s
-8.0-v2      8.0.14    kubedb/mysql:8.0-v2      true         49s
-8.0-v3      8.0.20    kubedb/mysql:8.0.20                   49s
-8.0.14      8.0.14    kubedb/mysql:8.0.14      true         49s
-8.0.14-v1   8.0.14    kubedb/mysql:8.0.14-v1                49s
-8.0.18      8.0.18    kubedb/mysql:8.0.18                   49s
-8.0.19      8.0.19    kubedb/mysql:8.0.19                   49s
-8.0.20      8.0.20    kubedb/mysql:8.0.20                   49s
-8.0.3       8.0.3     kubedb/mysql:8.0.3       true         49s
-8.0.3-v1    8.0.3     kubedb/mysql:8.0.3-v1                 49s
+5           5         kubedb/mysql:5           true         149m
+5-v1        5         kubedb/mysql:5-v1        true         149m
+5.7         5.7       kubedb/mysql:5.7         true         149m
+5.7-v1      5.7       kubedb/mysql:5.7-v1      true         149m
+5.7-v2      5.7.25    kubedb/mysql:5.7-v2      true         149m
+5.7-v3      5.7.25    kubedb/mysql:5.7.25      true         149m
+5.7-v4      5.7.29    kubedb/mysql:5.7.29      true         149m
+5.7.25      5.7.25    kubedb/mysql:5.7.25      true         149m
+5.7.25-v1   5.7.25    kubedb/mysql:5.7.25-v1                149m
+5.7.29      5.7.29    kubedb/mysql:5.7.29                   149m
+5.7.31      5.7.31    kubedb/mysql:5.7.31                   149m
+8           8         kubedb/mysql:8           true         149m
+8-v1        8         kubedb/mysql:8-v1        true         149m
+8.0         8.0       kubedb/mysql:8.0         true         149m
+8.0-v1      8.0.3     kubedb/mysql:8.0-v1      true         149m
+8.0-v2      8.0.14    kubedb/mysql:8.0-v2      true         149m
+8.0-v3      8.0.20    kubedb/mysql:8.0.20      true         149m
+8.0.14      8.0.14    kubedb/mysql:8.0.14      true         149m
+8.0.14-v1   8.0.14    kubedb/mysql:8.0.14-v1                149m
+8.0.20      8.0.20    kubedb/mysql:8.0.20                   149m
+8.0.21      8.0.21    kubedb/mysql:8.0.21                   149m
+8.0.3       8.0.3     kubedb/mysql:8.0.3       true         149m
+8.0.3-v1    8.0.3     kubedb/mysql:8.0.3-v1                 149m
 ```
 
-The version above that does not show `DEPRECATED` `true` is supported by `KubeDB` for `MySQL`. Now we will select a version from `MySQLVersion` for `MySQL` group replication that will be possible to upgrade from this version to another version. For `MySQL` group replication deployment, we will select version `5.7.29`. The below section will check this version's upgrade constraints.
+The version above that does not show `DEPRECATED` true are supported by `KubeDB` for `MySQL`. You can use any non-deprecated version. Now, we are going to select a non-deprecated version from `MySQLVersion` for `MySQL` group replication that will be possible to upgrade from this version to another version. In the next section we are going to verify version upgrade constraints.
 
 **Check Upgrade Constraints:**
 
-"Version upgrade constraints" is a way to show whether it is possible or not possible to upgrade from one version to another. Let's check the version upgrade constraints of `5.7.29`,
+Database version upgrade constraints is a constraint that shows whether it is possible or not possible to upgrade from one version to another. Let's check the version upgrade constraints of `MySQL` `5.7.29`,
 
 ```console
 $ kubectl get mysqlversion 5.7.29 -o yaml
 apiVersion: catalog.kubedb.com/v1alpha1
 kind: MySQLVersion
 metadata:
+  creationTimestamp: "2020-07-25T08:45:21Z"
+  ....
+  generation: 2
   name: 5.7.29
-  ...
 spec:
   db:
-    image: kubedb/mysql:5.7.29
+    image: suaas21/my:5.7.29
   exporter:
     image: kubedb/mysqld-exporter:v0.11.0
   initContainer:
@@ -94,11 +101,11 @@ spec:
   podSecurityPolicies:
     databasePolicyName: mysql-db
   replicationModeDetector:
-    image: kubedb/mysql-replication-mode-detector:v0.0.1
+    image: kubedb/mysql-replication-mode-detector:v0.1.0-beta.1
   tools:
     image: kubedb/mysql-tools:5.7.25
   upgradeConstraints:
-    blacklist:
+    denylist:
       groupReplication:
       - < 5.7.29
       standalone:
@@ -106,15 +113,11 @@ spec:
   version: 5.7.29
 ```
 
-The above `spec.upgradeConstraints.blacklist` is showing that upgrading below version `5.7.29` is not possible for both group replication and standalone. That means, it is possible to upgrade any version above `5.7.29`. The below section will describe deploying `MySQL` group replication using version `5.7.29`.
+The above `spec.upgradeConstraints.denylist` is showing that upgrading below version of `5.7.29` is not possible for both group replication and standalone. That means, it is possible to upgrade any version above `5.7.29`. Here, we are going to create a `MySQL` Group Replication using MySQL  `5.7.29`. Then we are going to upgrade this version to `8.0.20`.
 
-#### Prepare Group Replication
+**Deploy MySQL Group Replication :**
 
-Now, we are going to deploy a `MySQL` group replication using version `5.7.29`.
-
-**Create MySQL Object:**
-
-Below is the YAML of the `MySQL` crd that we are going to create,
+Below is the YAML of the `MySQL` cr that we are going to create,
 
 ```yaml
 apiVersion: kubedb.com/v1alpha1
@@ -141,14 +144,14 @@ spec:
   terminationPolicy: WipeOut
 ```
 
-Let's create the `MySQL` crd we have shown above,
+Let's create the `MySQL` cr we have shown above,
 
 ```console
-$ kubectl create -f https://github.com/kubedb/docs/raw/{{< param "info.version" >}}/docs/examples/day-2operations/group_replication.yaml
+$ kubectl create -f https://github.com/kubedb/docs/raw/{{< param "info.version" >}}/docs/examples/day-2-operations/mysql/upgrading/group_replication.yaml
 mysql.kubedb.com/my-group created
 ```
 
-**Check MySQL group Ready to Upgrade:**
+**Wait for the cluster to be ready :**
 
 `KubeDB` operator watches for `MySQL` objects using Kubernetes API. When a `MySQL` object is created, `KubeDB` operator will create a new StatefulSet, Services and Secrets etc. A secret called `my-group-auth` (format: <em>{mysql-object-name}-auth</em>) will be created storing the password for mysql superuser.
 Now, watch `MySQL` is going to  `Running` state and also watch `StatefulSet` and its pod is created and going to `Running` state,
@@ -175,7 +178,7 @@ my-group-1   1/1     Running   0          9m53s
 my-group-2   1/1     Running   0          6m48s
 ```
 
-Let's check the `MySQL`, `StatefulSet` and its `Pod` image version,
+Let's verify the `MySQL`, the `StatefulSet` and its `Pod` image version,
 
 ```console
 $ kubectl get my -n demo my-group -o=jsonpath='{.spec.version}{"\n"}'
@@ -190,7 +193,7 @@ $ kubectl get pod -n demo -l kubedb.com/kind=MySQL,kubedb.com/name=my-group -o j
 "kubedb/my:5.7.29"
 ```
 
-Let's also check the StatefulSet pods have formed a MySQL group replication,
+Let's also verify that the StatefulSet’s pods have joined into a group replication,
 
 ```console
 $ kubectl get secrets -n demo my-group-auth -o jsonpath='{.data.\username}' | base64 -d
@@ -210,80 +213,80 @@ mysql: [Warning] Using a password on the command line interface can be insecure.
 +---------------------------+--------------------------------------+------------------------------+-------------+--------------+
 ```
 
-We are ready to upgrade the above `MySQL` group replication.
+We are ready to apply upgrading on this `MySQL` group replication.
 
 #### Upgrade
 
-Here, we are going to upgrade `MySQL` group replication from version `5.7.29` to `8.0.20`.
+Here, we are going to upgrade the `MySQL` group replication from `5.7.29` to `8.0.20`.
 
-**Create MySQLOpsRequest:**
+**Create MySQLOpsRequest :**
 
-Below is the YAML of the `MySQLOpsRequest` crd that we are going to create,
+In order to upgrade your cluster, you have to create a `MySQLOpsRequest` cr with your desired version that supported by `KubeDB`. Below is the YAML of the `MySQLOpsRequest` crd that we are going to create,
 
 ```yaml
 apiVersion: ops.kubedb.com/v1alpha1
 kind: MySQLOpsRequest
 metadata:
-  name: myopsreq-group
+  name: my-upgrade-major-group
   namespace: demo
 spec:
+  type: Upgrade
   databaseRef:
     name: my-group
-  type: Upgrade
   upgrade:
     targetVersion: "8.0.20"
 ```
 
 Here,
 
-- `spec.databaseRef.name` refers to the `my-group` MySQL object for operation.
-- `spec.type` specifies that this is an `Upgrade` type operation
-- `spec.upgrade.targetVersion` specifies version `8.0.20` that will be upgraded from version `5.7.29`.
+- `spec.databaseRef.name` specifies that we are performing operation on `my-group` MySQL database.
+- `spec.type` specifies that we are going performing `Upgrade` on our database.
+- `spec.upgrade.targetVersion` specifies expected version `8.0.20` after upgrading.
 
-Let's create the `MySQLOpsRequest` crd we have shown above,
+Let's create the `MySQLOpsRequest` cr we have shown above,
 
 ```console
-$ kubectl apply -f https://github.com/kubedb/docs/raw/{{< param "info.version" >}}/docs/examples/day-2operations/upgrade_group.yaml
-mysqlopsrequest.ops.kubedb.com/myopsreq-group created
+$ kubectl apply -f https://github.com/kubedb/docs/raw/{{< param "info.version" >}}/docs/examples/day-2-operations/mysql/upgrading/upgrade_major_version_group.yaml
+mysqlopsrequest.ops.kubedb.com/my-upgrade-major-group created
 ```
 
-> Note: In the group replication of mysql, a new statefulset is created by KubeDB enterprise operator in the field of major version upgrading and the old one is deleted. The name of the StatefulSet is formed as follows: `<mysql-name>-<suffix>`.
+> Note: During upgradation of mysql group replication, a new StatefulSet is created by the KubeDB enterprise operator in the field of major version upgrading and the old one is deleted. The name of the newly created StatefulSet is formed as follows: `<mysql-name>-<suffix>`.
 Here, `<suffix>` is a positive integer number and starts with 1. It's determined as follows:
 For one-time major version upgrading of group replication, suffix will be 1.
 For the 2nd time major version upgrading of group replication, suffix will be 2.
 It will be continued...
 
-**Check MySQL version upgraded:**
+**Verify MySQL version upgraded successfully :**
 
-If everything goes well, `KubeDB` enterprise operator will update the images of `MySQL`and will create a new `StatefulSet` named `my-group-1`.
+If everything goes well, `KubeDB` enterprise operator will create a new `StatefulSet` named `my-group-1` with desire updated version and delete the one one.
 
-First, we will wait for `MySQLOpsRequest` to be successful.  Run the following command to watch `MySQlOpsRequest` crd,
+At first, we will wait for `MySQLOpsRequest` to be successful.  Run the following command to watch `MySQlOpsRequest` cr,
 
 ```console
-$ watch -n 3 kubectl get myops -n demo myopsreq-group
-Every 3.0s: kubectl get myops -n demo myopsreq-group             suaas-appscode: Thu Jun 18 14:48:05 2020
+$ watch -n 3 kubectl get myops -n demo my-upgrade-major-group
+Every 3.0s: kubectl get myops -n demo my-upgrade-major-group     suaas-appscode: Sat Jul 25 21:41:39 2020
 
-NAME             TYPE      STATUS       AGE
-myopsreq-group   Upgrade   Successful   8m30s
+NAME                     TYPE      STATUS       AGE
+my-upgrade-major-group   Upgrade   Successful   5m26s
 ```
 
-We can see from the above output that the `MySQLOpsRequest` has succeeded. If you describe the `MySQLOpsRequest` you will see that the `MySQL` is updated with new images and the `StatefulSet` and its `Pod` is created with new images.
+You can see from the above output that the `MySQLOpsRequest` has succeeded. If you describe the `MySQLOpsRequest` you will see that the `MySQL` group replication is updated with new images and the `StatefulSet` is created with new image.
 
 ```console
-$ kubectl describe myops -n demo myopsreq-group
-Name:         myopsreq-group
+$ kubectl describe myops -n demo my-upgrade-major-group
+Name:         my-upgrade-major-group
 Namespace:    demo
 Labels:       <none>
 Annotations:  API Version:  ops.kubedb.com/v1alpha1
 Kind:         MySQLOpsRequest
 Metadata:
-  Creation Timestamp:  2020-06-18T08:39:35Z
+  Creation Timestamp:  2020-07-25T15:36:13Z
   Finalizers:
     mysql.ops.kubedb.com
   Generation:        3
-  Resource Version:  12961
-  Self Link:         /apis/ops.kubedb.com/v1alpha1/namespaces/demo/mysqlopsrequests/myopsreq-group
-  UID:               e091e283-373e-4633-9b9f-f43983a122be
+  Resource Version:  38424
+  Self Link:         /apis/ops.kubedb.com/v1alpha1/namespaces/demo/mysqlopsrequests/my-upgrade-major-group
+  UID:               1eb46c20-0b23-4e3c-bbcc-093f54f3465e
 Spec:
   Database Ref:
     Name:                my-group
@@ -293,71 +296,61 @@ Spec:
     Target Version:  8.0.20
 Status:
   Conditions:
-    Last Transition Time:  2020-06-18T08:39:35Z
-    Message:               The controller has started to Progress the OpsRequest
+    Last Transition Time:  2020-07-25T15:36:13Z
+    Message:               Controller has started to Progress the MySQLOpsRequest: demo/my-upgrade-major-group
     Observed Generation:   1
-    Reason:                OpsRequestOpsRequestProgressing
+    Reason:                OpsRequestProgressingStarted
     Status:                True
     Type:                  Progressing
-    Last Transition Time:  2020-06-18T08:39:35Z
-    Message:               MySQLOpsRequestDefinition: myopsreq-group for Pausing MySQL: demo/my-group
+    Last Transition Time:  2020-07-25T15:36:13Z
+    Message:               The controller successfull Paused the MySQL database: demo/my-group 
     Observed Generation:   1
-    Reason:                PausingDatabase
+    Reason:                SuccessfullyPausedDatabase
     Status:                True
-    Type:                  PausingDatabase
-    Last Transition Time:  2020-06-18T08:39:35Z
-    Message:               MySQLOpsRequestDefinition: myopsreq-group for Paused MySQL: demo/my-group
+    Type:                  PauseDatabase
+    Last Transition Time:  2020-07-25T15:36:13Z
+    Message:               MySQL version upgrading stated for MySQLOpsRequest: demo/my-upgrade-major-group
     Observed Generation:   1
-    Reason:                PausedDatabase
+    Reason:                DatabaseVersionUpgradingStarted
     Status:                True
-    Type:                  PausedDatabase
-    Last Transition Time:  2020-06-18T08:39:35Z
-    Message:               MySQLOpsRequestDefinition: myopsreq-group for Upgrading MySQL version: demo/my-group
+    Type:                  Upgrading
+    Last Transition Time:  2020-07-25T15:41:33Z
+    Message:               Image successfully updated in MySQL: demo/my-group for MySQLOpsRequest: my-upgrade-major-group 
     Observed Generation:   1
-    Reason:                OpsRequestUpgradingVersion
+    Reason:                SuccessfullyUpgradedDatabaseVersion
     Status:                True
-    Type:                  UpgradingVersion
-    Last Transition Time:  2020-06-18T08:47:55Z
-    Message:               MySQLOpsRequestDefinition: myopsreq-group for image successfully upgraded for MySQ: demo/my-group
-    Observed Generation:   1
-    Reason:                OpsRequestUpgradedVersion
-    Status:                True
-    Type:                  UpgradedVersion
-    Last Transition Time:  2020-06-18T08:47:56Z
-    Message:               MySQLOpsRequestDefinition: myopsreq-group for Resuming MySQL: demo/my-group
+    Type:                  UpgradeVersion
+    Last Transition Time:  2020-07-25T15:41:33Z
+    Message:               The controller successfull Resumed the MySQL database: demo/my-group
     Observed Generation:   3
-    Reason:                ResumingDatabase
+    Reason:                SuccessfullyResumedDatabase
     Status:                True
-    Type:                  ResumingDatabase
-    Last Transition Time:  2020-06-18T08:47:56Z
-    Message:               MySQLOpsRequestDefinition: myopsreq-group for Reasumed MySQL: demo/my-group
+    Type:                  ResumeDatabase
+    Last Transition Time:  2020-07-25T15:41:33Z
+    Message:               Controller has successfully scaled/upgraded the MySQL demo/my-upgrade-major-group
     Observed Generation:   3
-    Reason:                ResumedDatabase
-    Status:                True
-    Type:                  ResumedDatabase
-    Last Transition Time:  2020-06-18T08:47:56Z
-    Message:               The controller has scaled/upgraded the MySQL successfully
-    Observed Generation:   3
-    Reason:                OpsRequestSuccessful
+    Reason:                OpsRequestProcessedSuccessfully
     Status:                True
     Type:                  Successful
   Observed Generation:     3
   Phase:                   Successful
 Events:
-  Type    Reason           Age    From                        Message
-  ----    ------           ----   ----                        -------
-  Normal  Pausing          10m    KubeDB Enterprise Operator  MySQLOpsRequestDefinition: myopsreq-group, Pausing MySQL: demo/my-group
-  Normal  SuccessfulPause  10m    KubeDB Enterprise Operator  MySQLOpsRequestDefinition: myopsreq-group, successfully paused: demo/my-group
-  Normal  Starting         10m    KubeDB Enterprise Operator  MySQLOpsRequestDefinition: myopsreq-group, Upgrading MySQL images: demo/my-group
-  Normal  Successful       8m1s   KubeDB Enterprise Operator  MySQLOpsRequestDefinition: myopsreq-group, image successfully upgraded for Pod: demo/my-group-1-0
-  Normal  Successful       4m41s  KubeDB Enterprise Operator  MySQLOpsRequestDefinition: myopsreq-group, image successfully upgraded for Pod: demo/my-group-1-1
-  Normal  Successful       2m21s  KubeDB Enterprise Operator  MySQLOpsRequestDefinition: myopsreq-group, image successfully upgraded for Pod: demo/my-group-1-2
-  Normal  Successful       2m1s   KubeDB Enterprise Operator  MySQLOpsRequestDefinition: myopsreq-group, image successfully upgraded for MySQL: demo/my-group
-  Normal  Resuming         2m     KubeDB Enterprise Operator  MySQLOpsRequestDefinition: myopsreq-group, Resuming MySQL: demo/my-group
-  Normal  Successful       2m     KubeDB Enterprise Operator  MySQLOpsRequestDefinition: myopsreq-group, Resumed for MySQL: demo/my-group
+  Type    Reason      Age    From                        Message
+  ----    ------      ----   ----                        -------
+  Normal  Starting    7m9s   KubeDB Enterprise Operator  Start processing for MySQLOpsRequest: demo/my-upgrade-major-group
+  Normal  Starting    7m9s   KubeDB Enterprise Operator  Pausing MySQL databse: demo/my-group
+  Normal  Successful  7m9s   KubeDB Enterprise Operator  Successfully paused MySQL database: demo/my-group for MySQLOpsRequest: my-upgrade-major-group
+  Normal  Starting    7m9s   KubeDB Enterprise Operator  Upgrading MySQL images: demo/my-group for MySQLOpsRequest: my-upgrade-major-group
+  Normal  Successful  5m29s  KubeDB Enterprise Operator  Image successfully upgraded for Pod: demo/my-group-1-0
+  Normal  Successful  3m49s  KubeDB Enterprise Operator  Image successfully upgraded for Pod: demo/my-group-1-1
+  Normal  Successful  2m9s   KubeDB Enterprise Operator  Image successfully upgraded for Pod: demo/my-group-1-2
+  Normal  Successful  109s   KubeDB Enterprise Operator  Image successfully updated of MySQL: demo/my-group for MySQLOpsRequest: my-upgrade-major-group
+  Normal  Starting    109s   KubeDB Enterprise Operator  Resuming MySQL database: demo/my-group
+  Normal  Successful  109s   KubeDB Enterprise Operator  Successfully resumed MySQL database: demo/my-group
+  Normal  Successful  109s   KubeDB Enterprise Operator  Controller has Successfully upgraded the version of MySQL : demo/my-group
 ```
 
-Now, we are going to verify whether the `MySQL`, `StatefulSet` and it's `Pod` images have updated. Let's check,
+Now, we are going to verify whether the `MySQL` and `StatefulSet` and it's `Pod` have updated with new image. Let's check,
 
 ```console
 $ kubectl get my -n demo my-group -o=jsonpath='{.spec.version}{"\n"}'
@@ -392,11 +385,13 @@ mysql: [Warning] Using a password on the command line interface can be insecure.
 +---------------------------+--------------------------------------+--------------------------------+-------------+--------------+-------------+----------------+
 ```
 
+You can see above that our `MySQL` group replication now have updated members. It verify that we have successfully upgrade our cluster.
+
 ## Cleaning Up
 
 To clean up the Kubernetes resources created by this tutorial, run:
 
 ```console
-kubectl delete my -n demo my-standalone
-kubectl delete myops -n demo myopsreq-standalone
+kubectl delete my -n demo my-group
+kubectl delete myops -n demo my-upgrade-major-group
 ```
