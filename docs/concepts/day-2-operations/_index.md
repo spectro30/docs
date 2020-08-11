@@ -3,9 +3,9 @@ title: OpsRequest Concepts | KubeDB
 description: OpsRequest for Databases
 menu:
   docs_{{ .version }}:
-    identifier: databases
+    identifier: concepts-opsrequests
     parent: concepts
-    name: OpsRequest
-    weight: 10
+    name: OpsRequests
+    weight: 27
 menu_name: docs_{{ .version }}
 ---
