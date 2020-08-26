@@ -1,0 +1,12 @@
+apiVersion: ops.kubedb.com/v1alpha1
+kind: MongoDBOpsRequest
+metadata:
+  name: mops-hscale-down-configserver
+  namespace: demo
+spec:
+  type: HorizontalScaling
+  databaseRef:
+    name: mg-sharding
+  horizontalScaling:
+    configServer:
+      replicas: 2
