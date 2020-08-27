@@ -1,0 +1,11 @@
+apiVersion: ops.kubedb.com/v1alpha1
+kind: MongoDBOpsRequest
+metadata:
+  name: mops-volume-exp-configserver
+  namespace: demo
+spec:
+  type: VolumeExpansion
+  databaseRef:
+    name: mg-sharding
+  volumeExpansion:
+    configServer: 2Gi
