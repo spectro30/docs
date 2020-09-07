@@ -4,12 +4,17 @@ metadata:
   name: mongo-sh-tls
   namespace: demo
 spec:
-  version: 3.6-v4
+  version: "4.1.13-v1"
   sslMode: requireSSL
+  tls:
+    issuerRef:
+      name: mongo-ca-issuer
+      kind: Issuer
+      apiGroup: "cert-manager.io"
   clusterAuthMode: x509
   shardTopology:
     configServer:
-      replicas: 3
+      replicas: 2
       storage:
         resources:
           requests:
@@ -17,17 +22,13 @@ spec:
         storageClassName: standard
     mongos:
       replicas: 2
-      strategy:
-        type: RollingUpdate
     shard:
-      replicas: 3
-      shards: 3
+      replicas: 2
+      shards: 2
       storage:
         resources:
           requests:
             storage: 1Gi
         storageClassName: standard
-  updateStrategy:
-    type: RollingUpdate
   storageType: Durable
   terminationPolicy: WipeOut

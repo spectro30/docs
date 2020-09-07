@@ -10,7 +10,7 @@ menu_name: docs_{{ .version }}
 section_menu_id: guides
 ---
 
-> New to KubeDB? Please start [here](/docs/concepts/README.md).
+{{< notice type="warning" message="This is an Enterprise-only feature. Please install [KubeDB Enterprise Edition](/docs/setup/install/enterprise.md) to try this feature." >}}
 
 # Run MongoDB with TLS/SSL (Transport Encryption)
 
@@ -20,7 +20,9 @@ KubeDB supports providing TLS/SSL encryption (via, `sslMode` and `clusterAuthMod
 
 - At first, you need to have a Kubernetes cluster, and the kubectl command-line tool must be configured to communicate with your cluster. If you do not already have a cluster, you can create one by using [kind](https://kind.sigs.k8s.io/docs/user/quick-start/).
 
-- Now, install KubeDB cli on your workstation and KubeDB operator in your cluster following the steps [here](/docs/setup/README.md).
+- Install `cert-manger operator` (v0.12.0 or later) to your cluster to manage your SSL/TLS certificates.
+
+- Now, install KubeDB cli on your workstation and KubeDB operator in your cluster following the steps [here](/docs/setup/install.md).
 
 - To keep things isolated, this tutorial uses a separate namespace called `demo` throughout this tutorial.
 
@@ -33,19 +35,62 @@ KubeDB supports providing TLS/SSL encryption (via, `sslMode` and `clusterAuthMod
 
 ## Overview
 
-KubeDB uses following fields to set `SSLMode` & `ClusterAuthMode` in Mongodb to achieve SSL/TLS encryption.
+KubeDB uses following crd fields to enable SSL/TLS encryption in Mongodb.
 
 - `spec:`
   - `sslMode`
+  - `tls:`
+    - `issuerRef`
+    - `certificate`
   - `clusterAuthMode`
 
 Read about the fields in details in [mongodb concept](/docs/concepts/databases/mongodb.md),
 
-`sslMode` is applicable for all kind of mongodb (i.e., `standalone`, `replicaset` and `sharding`), while `clusterAuthMode` provides [ClusterAuthMode](https://docs.mongodb.com/manual/reference/program/mongod/#cmdoption-mongod-clusterauthmode) for mongodb clusters (i.e., `replicaset` and `sharding`).
+`sslMode`, and `tls` is applicable for all kind of mongodb (i.e., `standalone`, `replicaset` and `sharding`), while `clusterAuthMode` provides [ClusterAuthMode](https://docs.mongodb.com/manual/reference/program/mongod/#cmdoption-mongod-clusterauthmode) for mongodb clusters (i.e., `replicaset` and `sharding`).
 
-When, SSLMode is anything other than `disabled`, kubedb will create a certificate secret where all the required certificates are given including `ca.cert`, `ca.key` and `client.pem`.
+When, SSLMode is anything other than `disabled`, users must specify the `tls.issuerRef` field. Kubedb uses the `issuer` or `clusterIssuer` referenced in the `tls.issuerRef` field, and the certificate specs provided in `tls.certificate` to generate certificate secrets. These certificate secrets are then used to generate required certificates including `ca.crt`, `mongo.pem` and `client.pem`.
 
 The subject of `client.pem` certificate is added as `root` user in `$external` mongodb database. So, user can use this client certificate for `MONGODB-X509` `authenticationMechanism`.
+
+## Create Issuer/ ClusterIssuer
+
+We are going to create an example `Issuer` that will be used throughout the duration of this tutorial to enable SSL/TLS in MongoDB. Alternatively, you can follow this [cert-manager tutorial](https://cert-manager.io/docs/configuration/ca/) to create your own `Issuer`.
+
+- Start off by generating you ca certificates using openssl.
+
+```bash
+openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout ./ca.key -out ./ca.crt -subj "/CN=mongo/O=kubedb"
+```
+
+- Now create a ca-secret using the certificate files you have just generated.
+
+```bash
+kubectl create secret tls mongo-ca \
+     --cert=ca.crt \
+     --key=ca.key \
+     --namespace=demo
+```
+
+Now, create an `Issuer` using the `ca-secret` you have just created. The `YAML` file looks like this:
+
+```yaml
+apiVersion: cert-manager.io/v1alpha2
+kind: Issuer
+metadata:
+  name: mongo-ca-issuer
+  namespace: demo
+spec:
+  ca:
+    secretName: mongo-ca
+```
+
+Apply the `YAML` file:
+
+```bash
+$ kubectl create -f https://github.com/kubedb/docs/raw/{{< param "info.version" >}}/docs/examples/mongodb/tls-ssl-encryption/issuer.yaml
+issuer.cert-manager.io/mongo-ca-issuer created
+```
+
 
 ## TLS/SSL encryption in MongoDB Standalone
 
@@ -58,8 +103,13 @@ metadata:
   name: mgo-tls
   namespace: demo
 spec:
-  version: "3.6-v4"
+  version: "4.1.13-v1"
   sslMode: requireSSL
+  tls:
+    issuerRef:
+      name: mongo-ca-issuer
+      kind: Issuer
+      apiGroup: "cert-manager.io"
   storage:
     storageClassName: "standard"
     accessModes:
@@ -72,66 +122,63 @@ spec:
 ### Deploy MongoDB Standalone
 
 ```console
-$ kubectl create -f ./docs/examples/mongodb/tls-ssl-encryption/tls-standalone.yaml
+$ kubectl create -f https://github.com/kubedb/docs/raw/{{< param "info.version" >}}/docs/examples/mongodb/tls-ssl-encryption/mg-standalone-ssl.yaml
 mongodb.kubedb.com/mgo-tls created
 ```
 
 Now, wait until `mgo-tls created` has status `Running`. i.e,
 
 ```console
-$ kubectl get mg -n demo
-NAME      VERSION   STATUS    AGE
-mgo-tls   3.6-v4    Running   20s
+$ watch kubectl get mg -n demo
+Every 2.0s: kubectl get mongodb -n demo
+NAME      VERSION     STATUS     AGE
+mgo-tls   4.1.13-v1   Running    14s
 ```
 
 ### Verify TLS/SSL in MongoDB Standalone
 
-Now, connect to this database through [mongo-shell](https://docs.mongodb.com/v3.4/mongo/) and verify if `SSLMode` has been set up as intended (i.e, `requireSSL`).
+Now, connect to this database through [mongo-shell](https://docs.mongodb.com/v4.0/mongo/) and verify if `SSLMode` has been set up as intended (i.e, `requireSSL`).
 
 ```console
-$ kubectl describe secret -n demo mgo-tls-cert
-Name:         mgo-tls-cert
+$ kubectl describe secret -n demo mgo-tls-client-cert
+Name:         mgo-tls-client-cert
 Namespace:    demo
-Labels:       app.kubernetes.io/component=database
-              app.kubernetes.io/instance=mgo-tls
-              app.kubernetes.io/managed-by=kubedb.com
-              app.kubernetes.io/name=mongodb
-              app.kubernetes.io/version=3.6-v4
-              kubedb.com/kind=MongoDB
-              kubedb.com/name=mgo-tls
-Annotations:  <none>
+Labels:       <none>
+Annotations:  cert-manager.io/alt-names: 
+              cert-manager.io/certificate-name: mgo-tls-client-cert
+              cert-manager.io/common-name: root
+              cert-manager.io/ip-sans: 
+              cert-manager.io/issuer-group: cert-manager.io
+              cert-manager.io/issuer-kind: Issuer
+              cert-manager.io/issuer-name: mongo-ca-issuer
+              cert-manager.io/uri-sans: 
 
-Type:  Opaque
+Type:  kubernetes.io/tls
 
 Data
 ====
-ca.cert:     1058 bytes
-ca.key:      1679 bytes
-client.pem:  2859 bytes
-key.txt:     1008 bytes
-mongo.pem:   2863 bytes
+tls.crt:  1172 bytes
+tls.key:  1679 bytes
+ca.crt:   1147 bytes
 ```
 
+Now, Lets exec into a mongodb container and find out the username to connect in a mongo shell,
 ```console
 $ kubectl exec -it mgo-tls-0 -n demo bash
-mongodb@mgo-tls-0: # you are into container
+mongodb@mgo-tls-0:/$ ls /var/run/mongodb/tls
+ca.crt  client.pem  mongo.pem
+mongodb@mgo-tls-0:/$ openssl x509 -in /var/run/mongodb/tls/client.pem -inform PEM -subject -nameopt RFC2253 -noout
+subject=CN=root,OU=client,O=kubedb
+```
 
-mongodb@mgo-tls-0:/$ ls /data/configdb/
-ca.cert  ca.key  client.pem  key.txt  mongo.pem  mongod.conf
+Now, we can connect using `CN=root,OU=client,O=kubedb` as root to connect to the mongo shell,
+```console
+mongodb@mgo-tls-0:/$ mongo --tls --tlsCAFile /var/run/mongodb/tls/ca.crt --tlsCertificateKeyFile /var/run/mongodb/tls/client.pem admin --host localhost --authenticationMechanism MONGODB-X509 --authenticationDatabase='$external' -u "CN=root,OU=client,O=kubedb" --quiet
+>
+```
 
-mongodb@mgo-tls-0:/$ openssl x509 -in /data/configdb/client.pem -inform PEM -subject -nameopt RFC2253 -noout
-subject= CN=root,O=kubedb:client
-
-# Now use CN=root,O=kubedb:client as root 
-mongodb@mgo-tls-0:/$ mongo --ssl --sslCAFile /data/configdb/ca.cert --sslPEMKeyFile /data/configdb/client.pem admin --host localhost --authenticationMechanism MONGODB-X509 --authenticationDatabase='$external' -u "CN=root,O=kubedb:client"
-
-MongoDB shell version v3.6.13
-connecting to: mongodb://localhost:27017/admin?authMechanism=MONGODB-X509&authSource=%24external&gssapiServiceName=mongodb
-Implicit session: session { "id" : UUID("67cc3683-89ac-4198-9a93-a793c257e838") }
-MongoDB server version: 3.6.13
-Welcome to the MongoDB shell.
-> #you are connected to mongo cli
-
+We are connected to the mongo shell. Let's run some command to verify the sslMode and the user,
+```console
 > db.adminCommand({ getParameter:1, sslMode:1 })
 { "sslMode" : "requireSSL", "ok" : 1 }
 
@@ -140,24 +187,25 @@ switched to db $external
 
 > show users
 {
-	"_id" : "$external.CN=root,O=kubedb:client",
-	"userId" : UUID("3c0a008e-f1db-4412-b993-996eb0937554"),
-	"user" : "CN=root,O=kubedb:client",
-	"db" : "$external",
-	"roles" : [
-		{
-			"role" : "root",
-			"db" : "admin"
-		}
-	]
+ 	"_id" : "$external.CN=root,OU=client,O=kubedb",
+ 	"userId" : UUID("d2ddf121-9398-400b-b477-0e8bcdd47746"),
+ 	"user" : "CN=root,OU=client,O=kubedb",
+ 	"db" : "$external",
+ 	"roles" : [
+ 		{
+ 			"role" : "root",
+ 			"db" : "admin"
+ 		}
+ 	],
+ 	"mechanisms" : [
+ 		"external"
+ 	]
 }
-
-
 > exit
 bye
 ```
 
-You can see here that, `sslMode` is set to `requireSSL` and also an user is created in `$external` with name `"CN=root,O=kubedb:client"`.
+You can see here that, `sslMode` is set to `requireSSL` and a user is created in `$external` with name `"CN=root,OU=client,O=kubedb"`.
 
 ## TLS/SSL encryption in MongoDB Replicaset
 
@@ -170,8 +218,13 @@ metadata:
   name: mgo-rs-tls
   namespace: demo
 spec:
-  version: "3.6-v4"
+  version: "4.1.13-v1"
   sslMode: requireSSL
+  tls:
+    issuerRef:
+      name: mongo-ca-issuer
+      kind: Issuer
+      apiGroup: "cert-manager.io"
   clusterAuthMode: x509
   replicas: 4
   replicaSet:
@@ -188,116 +241,107 @@ spec:
 ### Deploy MongoDB Replicaset
 
 ```console
-$ kubectl create -f ./docs/examples/mongodb/tls-ssl-encryption/tls-replicaset.yaml
+$ kubectl create -f https://github.com/kubedb/docs/raw/{{< param "info.version" >}}/docs/examples/mongodb/tls-ssl-encryption/mg-replicaset-ssl.yaml
 mongodb.kubedb.com/mgo-rs-tls created
 ```
 
 Now, wait until `mgo-rs-tls created` has status `Running`. i.e,
 
 ```console
-$ kubectl get mg -n demo
-NAME         VERSION   STATUS    AGE
-mgo-rs-tls   3.6-v4    Running   2m31s
+$ watch kubectl get mg -n demo
+Every 2.0s: kubectl get mongodb -n demo
+NAME         VERSION     STATUS    AGE
+mgo-rs-tls   4.1.13-v1   Running   4m10s
 ```
 
 ### Verify TLS/SSL in MongoDB Replicaset
 
-Now, connect to this database through [mongo-shell](https://docs.mongodb.com/v3.4/mongo/) and verify if `SSLMode` and `ClusterAuthMode` has been set up as intended.
+Now, connect to this database through [mongo-shell](https://docs.mongodb.com/v4.0/mongo/) and verify if `SSLMode` and `ClusterAuthMode` has been set up as intended.
 
 ```console
-$ kubectl describe secret -n demo mgo-rs-tls-cert
-Name:         mgo-rs-tls-cert
+$ kubectl describe secret -n demo mgo-rs-tls-client-cert
+Name:         mgo-rs-tls-client-cert
 Namespace:    demo
-Labels:       app.kubernetes.io/component=database
-              app.kubernetes.io/instance=mgo-rs-tls
-              app.kubernetes.io/managed-by=kubedb.com
-              app.kubernetes.io/name=mongodb
-              app.kubernetes.io/version=3.6-v4
-              kubedb.com/kind=MongoDB
-              kubedb.com/name=mgo-rs-tls
-Annotations:  <none>
+Labels:       <none>
+Annotations:  cert-manager.io/alt-names: 
+              cert-manager.io/certificate-name: mgo-rs-tls-client-cert
+              cert-manager.io/common-name: root
+              cert-manager.io/ip-sans: 
+              cert-manager.io/issuer-group: cert-manager.io
+              cert-manager.io/issuer-kind: Issuer
+              cert-manager.io/issuer-name: mongo-ca-issuer
+              cert-manager.io/uri-sans: 
 
-Type:  Opaque
+Type:  kubernetes.io/tls
 
 Data
 ====
-ca.cert:     1058 bytes
-ca.key:      1675 bytes
-client.pem:  2867 bytes
-key.txt:     1008 bytes
+ca.crt:   1147 bytes
+tls.crt:  1172 bytes
+tls.key:  1679 bytes
 ```
 
+Now, Lets exec into a mongodb container and find out the username to connect in a mongo shell,
 ```console
-$ kubectl exec -it mgo-rs-tls-0 -n demo bash
-mongodb@mgo-rs-tls-0: # you are into container
+$ kubectl exec -it mgo-tls-0 -n demo bash
+root@mgo-rs-tls-0:/$ ls /var/run/mongodb/tls
+ca.crt  client.pem  mongo.pem
+root@mgo-rs-tls-0:/$ openssl x509 -in /var/run/mongodb/tls/client.pem -inform PEM -subject -nameopt RFC2253 -noout
+subject=CN=root,OU=client,O=kubedb
+```
 
-mongodb@mgo-rs-tls-0:/$ ls /data/configdb/
-ca.cert  ca.key  ca.srl  client.pem  key.txt  mongo.pem  mongod.conf
-
-mongodb@mgo-rs-tls-0:/$ openssl x509 -in /data/configdb/client.pem -inform PEM -subject -nameopt RFC2253 -noout
-subject= CN=root,O=kubedb:client
-
-# Now use CN=root,O=kubedb:client as root 
-mongodb@mgo-rs-tls-0:/$ mongo --ssl --sslCAFile /data/configdb/ca.cert --sslPEMKeyFile /data/configdb/client.pem admin --host localhost --authenticationMechanism MONGODB-X509 --authenticationDatabase='$external' -u "CN=root,O=kubedb:client"
-
-MongoDB shell version v3.6.13
-connecting to: mongodb://localhost:27017/admin?authMechanism=MONGODB-X509&authSource=%24external&gssapiServiceName=mongodb
-Implicit session: session { "id" : UUID("c93e3e52-4b35-4d45-8c42-2d6ed3eb0ed8") }
-MongoDB server version: 3.6.13
+Now, we can connect using `CN=root,OU=client,O=kubedb` as root to connect to the mongo shell,
+```console
+root@mgo-rs-tls-0:/$ mongo --tls --tlsCAFile /var/run/mongodb/tls/ca.crt --tlsCertificateKeyFile /var/run/mongodb/tls/client.pem admin --host localhost --authenticationMechanism MONGODB-X509 --authenticationDatabase='$external' -u "CN=root,OU=client,O=kubedb" --quiet
 Welcome to the MongoDB shell.
-rs0:PRIMARY> #you are connected to mongo cli
+For interactive help, type "help".
+For more comprehensive documentation, see
+	http://docs.mongodb.org/
+Questions? Try the support group
+	http://groups.google.com/group/mongodb-user
+rs0:PRIMARY>
+```
 
+We are connected to the mongo shell. Let's run some command to verify the sslMode and the user,
+```console
 rs0:PRIMARY> db.adminCommand({ getParameter:1, sslMode:1 })
 {
 	"sslMode" : "requireSSL",
 	"ok" : 1,
-	"operationTime" : Timestamp(1564746095, 1),
 	"$clusterTime" : {
-		"clusterTime" : Timestamp(1564746095, 1),
+		"clusterTime" : Timestamp(1599490676, 1),
 		"signature" : {
-			"hash" : BinData(0,"29XpLUr5ZaWhAjadOvzosW2CMsU="),
-			"keyId" : NumberLong("6720531552222052354")
+			"hash" : BinData(0,"/wQ4pf4HVi1T7SOyaB3pXO56j64="),
+			"keyId" : NumberLong("6869759546676477954")
 		}
-	}
+	},
+	"operationTime" : Timestamp(1599490676, 1)
 }
-
-rs0:PRIMARY> db.adminCommand({ getParameter:1, clusterAuthMode:1 })
-{
-	"clusterAuthMode" : "x509",
-	"ok" : 1,
-	"operationTime" : Timestamp(1564746155, 1),
-	"$clusterTime" : {
-		"clusterTime" : Timestamp(1564746155, 1),
-		"signature" : {
-			"hash" : BinData(0,"D2kt9g/RsktDNJf0qM7NP9CUdX0="),
-			"keyId" : NumberLong("6720531552222052354")
-		}
-	}
-}
-
 
 rs0:PRIMARY> use $external
 switched to db $external
 
 rs0:PRIMARY> show users
 {
-	"_id" : "$external.CN=root,O=kubedb:client",
-	"userId" : UUID("a7f56f70-cd90-4ea8-846a-1a64736d44c8"),
-	"user" : "CN=root,O=kubedb:client",
+	"_id" : "$external.CN=root,OU=client,O=kubedb",
+	"userId" : UUID("9cebbcf4-74bf-47dd-a485-1604125058da"),
+	"user" : "CN=root,OU=client,O=kubedb",
 	"db" : "$external",
 	"roles" : [
 		{
 			"role" : "root",
 			"db" : "admin"
 		}
+	],
+	"mechanisms" : [
+		"external"
 	]
 }
-
-rs0:PRIMARY> exit
+> exit
 bye
 ```
 
-You can see here that, `sslMode` is set to `requireSSL` & `clusterAuthMode` is set to `x509` and also an user is created in `$external` with name `"CN=root,O=kubedb:client"`.
+You can see here that, `sslMode` is set to `requireSSL` and a user is created in `$external` with name `"CN=root,OU=client,O=kubedb"`.
 
 ## TLS/SSL encryption in MongoDB Sharding
 
@@ -310,12 +354,17 @@ metadata:
   name: mongo-sh-tls
   namespace: demo
 spec:
-  version: 3.6-v4
+  version: "4.1.13-v1"
   sslMode: requireSSL
+  tls:
+    issuerRef:
+      name: mongo-ca-issuer
+      kind: Issuer
+      apiGroup: "cert-manager.io"
   clusterAuthMode: x509
   shardTopology:
     configServer:
-      replicas: 3
+      replicas: 2
       storage:
         resources:
           requests:
@@ -323,18 +372,14 @@ spec:
         storageClassName: standard
     mongos:
       replicas: 2
-      strategy:
-        type: RollingUpdate
     shard:
-      replicas: 3
-      shards: 3
+      replicas: 2
+      shards: 2
       storage:
         resources:
           requests:
             storage: 1Gi
         storageClassName: standard
-  updateStrategy:
-    type: RollingUpdate
   storageType: Durable
   terminationPolicy: WipeOut
 ```
@@ -342,120 +387,105 @@ spec:
 ### Deploy MongoDB Sharding
 
 ```console
-$ kubectl create -f ./docs/examples/mongodb/tls-ssl-encryption/tls-sharding.yaml
+$ kubectl create -f https://github.com/kubedb/docs/raw/{{< param "info.version" >}}/docs/examples/mongodb/tls-ssl-encryption/mg-shard-ssl.yaml
 mongodb.kubedb.com/mongo-sh-tls created
 ```
 
 Now, wait until `mongo-sh-tls created` has status `Running`. ie,
 
 ```console
-$ kubectl get mg -n demo
-NAME           VERSION   STATUS    AGE
-mongo-sh-tls   3.6-v4    Running   9m34s
+$ watch kubectl get mg -n demo
+Every 2.0s: kubectl get mongodb -n demo
+NAME           VERSION     STATUS     AGE
+mongo-sh-tls   4.1.13-v1   Creating   4m24s
 ```
 
 ### Verify TLS/SSL in MongoDB Sharding
 
-Now, connect to `mongos` component of this database through [mongo-shell](https://docs.mongodb.com/v3.4/mongo/) and verify if `SSLMode` and `ClusterAuthMode` has been set up as intended.
+Now, connect to `mongos` component of this database through [mongo-shell](https://docs.mongodb.com/v4.0/mongo/) and verify if `SSLMode` and `ClusterAuthMode` has been set up as intended.
 
 ```console
-$ kubectl describe secret -n demo mongo-sh-tls-cert
-Name:         mongo-sh-tls-cert
+$ kubectl describe secret -n demo mongo-sh-tls-client-cert
+Name:         mongo-sh-tls-client-cert
 Namespace:    demo
-Labels:       app.kubernetes.io/component=database
-              app.kubernetes.io/instance=mongo-sh-tls
-              app.kubernetes.io/managed-by=kubedb.com
-              app.kubernetes.io/name=mongodb
-              app.kubernetes.io/version=3.6-v4
-              kubedb.com/kind=MongoDB
-              kubedb.com/name=mongo-sh-tls
-Annotations:  <none>
+Labels:       <none>
+Annotations:  cert-manager.io/alt-names: 
+              cert-manager.io/certificate-name: mongo-sh-tls-client-cert
+              cert-manager.io/common-name: root
+              cert-manager.io/ip-sans: 
+              cert-manager.io/issuer-group: cert-manager.io
+              cert-manager.io/issuer-kind: Issuer
+              cert-manager.io/issuer-name: mongo-ca-issuer
+              cert-manager.io/uri-sans: 
 
-Type:  Opaque
+Type:  kubernetes.io/tls
 
 Data
 ====
-ca.cert:     1058 bytes
-ca.key:      1675 bytes
-client.pem:  2879 bytes
-key.txt:     1008 bytes
+ca.crt:   1147 bytes
+tls.crt:  1172 bytes
+tls.key:  1679 bytes
 ```
 
+Now, Lets exec into a mongodb container and find out the username to connect in a mongo shell,
 ```console
-$ kubectl get po -n demo -l mongodb.kubedb.com/node.mongos=mongo-sh-tls-mongos
-NAME                                   READY   STATUS    RESTARTS   AGE
-mongo-sh-tls-mongos-5958559b5d-5vrjm   1/1     Running   0          87s
-mongo-sh-tls-mongos-5958559b5d-hckn7   1/1     Running   0          87s
+$ kubectl exec -it mongo-sh-tls-mongos-0 -n demo bash
+root@mongo-sh-tls-mongos-0:/$ ls /var/run/mongodb/tls
+ca.crt  client.pem  mongo.pem
+mongodb@mgo-tls-0:/$ openssl x509 -in /var/run/mongodb/tls/client.pem -inform PEM -subject -nameopt RFC2253 -noout
+subject=CN=root,OU=client,O=kubedb
+```
 
-$ kubectl exec -it mongo-sh-tls-mongos-5958559b5d-5vrjm -n demo bash
-mongodb@mongo-sh-tls-mongos-5958559b5d-5vrjm: # you are into container
-
-mongodb@mongo-sh-tls-mongos-5958559b5d-5vrjm:/$ ls /data/configdb/
-ca.cert  ca.key  ca.srl  client.pem  key.txt  mongo.pem  mongod.conf
-
-mongodb@mongo-sh-tls-mongos-5958559b5d-5vrjm:/$ openssl x509 -in /data/configdb/client.pem -inform PEM -subject -nameopt RFC2253 -noout
-subject= CN=root,O=kubedb:client
-
-# Now use CN=root,O=kubedb:client as root
-mongodb@mongo-sh-tls-mongos-5958559b5d-5vrjm:/$ mongo --ssl --sslCAFile /data/configdb/ca.cert --sslPEMKeyFile /data/configdb/client.pem admin --host localhost --authenticationMechanism MONGODB-X509 --authenticationDatabase='$external' -u "CN=root,O=kubedb:client"
-
-MongoDB shell version v3.6.13
-connecting to: mongodb://localhost:27017/admin?authMechanism=MONGODB-X509&authSource=%24external&gssapiServiceName=mongodb
-Implicit session: session { "id" : UUID("2294dbeb-58f1-4a52-8087-f5216e45ae81") }
-MongoDB server version: 3.6.13
+Now, we can connect using `CN=root,OU=client,O=kubedb` as root to connect to the mongo shell,
+```console
+root@mongo-sh-tls-mongos-0:/# mongo --tls --tlsCAFile /var/run/mongodb/tls/ca.crt --tlsCertificateKeyFile /var/run/mongodb/tls/client.pem admin --host localhost --authenticationMechanism MONGODB-X509 --authenticationDatabase='$external' -u "CN=root,OU=client,O=kubedb" --quiet
 Welcome to the MongoDB shell.
-mongos> #you are connected to mongo cli
+For interactive help, type "help".
+For more comprehensive documentation, see
+	http://docs.mongodb.org/
+Questions? Try the support group
+	http://groups.google.com/group/mongodb-user
+mongos> 
+```
 
+We are connected to the mongo shell. Let's run some command to verify the sslMode and the user,
+```console
 mongos> db.adminCommand({ getParameter:1, sslMode:1 })
 {
 	"sslMode" : "requireSSL",
 	"ok" : 1,
-	"operationTime" : Timestamp(1564746593, 1),
+	"operationTime" : Timestamp(1599491398, 1),
 	"$clusterTime" : {
-		"clusterTime" : Timestamp(1564746593, 1),
+		"clusterTime" : Timestamp(1599491398, 1),
 		"signature" : {
-			"hash" : BinData(0,"YdSBHQ7MzeOSu3gGkfEkY72s9O4="),
-			"keyId" : NumberLong("6720534043303084058")
+			"hash" : BinData(0,"cn2Mhfy2blonon3jPz6Daen0nnc="),
+			"keyId" : NumberLong("6869760899591176209")
 		}
 	}
 }
-
-mongos> db.adminCommand({ getParameter:1, clusterAuthMode:1 })
-{
-	"clusterAuthMode" : "x509",
-	"ok" : 1,
-	"operationTime" : Timestamp(1564746603, 1),
-	"$clusterTime" : {
-		"clusterTime" : Timestamp(1564746603, 1),
-		"signature" : {
-			"hash" : BinData(0,"SnyfGLtvJE7v+64VOcOGk35cIMM="),
-			"keyId" : NumberLong("6720534043303084058")
-		}
-	}
-}
-
 mongos> use $external
 switched to db $external
-
 mongos> show users
 {
-	"_id" : "$external.CN=root,O=kubedb:client",
-	"userId" : UUID("37703dcf-a71f-4611-b15f-7a2726921a25"),
-	"user" : "CN=root,O=kubedb:client",
+	"_id" : "$external.CN=root,OU=client,O=kubedb",
+	"userId" : UUID("4865dda6-5e31-4b79-a085-7d6fea51c9be"),
+	"user" : "CN=root,OU=client,O=kubedb",
 	"db" : "$external",
 	"roles" : [
 		{
 			"role" : "root",
 			"db" : "admin"
 		}
+	],
+	"mechanisms" : [
+		"external"
 	]
 }
-
-mongos> exit
+> exit
 bye
 ```
 
-You can see here that, `sslMode` is set to `requireSSL` & `clusterAuthMode` is set to `x509` and also an user is created in `$external` with name `"CN=root,O=kubedb:client"`.
+You can see here that, `sslMode` is set to `requireSSL` and `clusterAuthMode` is set to `x509` and also an user is created in `$external` with name `"CN=root,OU=client,O=kubedb"`.
 
 ## Changing the SSLMode & ClusterAuthMode
 
@@ -475,12 +505,8 @@ To **Upgrade from Keyfile Authentication to x.509 Authentication**, change the `
 To cleanup the Kubernetes resources created by this tutorial, run:
 
 ```console
-kubectl patch -n demo mg/mgo-rs-tls mg/mgo-tls mg/mongo-sh-tls -p '{"spec":{"terminationPolicy":"WipeOut"}}' --type="merge"
-kubectl delete -n demo mg/mgo-rs-tls mg/mgo-tls mg/mongo-sh-tls
-
-kubectl patch -n demo drmn/mgo-rs-tls drmn/mgo-tls drmn/mongo-sh-tls -p '{"spec":{"wipeOut":true}}' --type="merge"
-kubectl delete -n demo drmn/mgo-rs-tls drmn/mgo-tls drmn/mongo-sh-tls
-
+kubectl delete mongodb -n demo mgo-rs-tls mgo-tls mongo-sh-tls
+kubectl delete issuer -n demo mongo-ca-issuer
 kubectl delete ns demo
 ```
 
