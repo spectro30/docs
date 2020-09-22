@@ -14,13 +14,13 @@ section_menu_id: guides
 
 # Horizontal Scale MongoDB Replicaset
 
-This guide will show you how to use `KubeDB` enterprise operator to scale the replicaset of a MongoDB database.
+This guide will show you how to use `KubeDB` Enterprise operator to scale the replicaset of a MongoDB database.
 
 ## Before You Begin
 
 - At first, you need to have a Kubernetes cluster, and the `kubectl` command-line tool must be configured to communicate with your cluster. If you do not already have a cluster, you can create one by using [kind](https://kind.sigs.k8s.io/docs/user/quick-start/).
 
-- Install `KubeDB` community and enterprise operator in your cluster following the steps [here]().
+- Install `KubeDB` Community and Enterprise operator in your cluster following the steps [here]().
 
 - You should be familiar with the following `KubeDB` concepts:
   - [MongoDB](/docs/concepts/databases/mongodb.md)
@@ -233,7 +233,7 @@ mongodbopsrequest.ops.kubedb.com/mops-hscale-up-replicaset created
 
 #### Verify Replicaset replicas scaled up successfully 
 
-If everything goes well, `KubeDB` enterprise operator will update the replicas of `MongoDB` object and related `StatefulSets` and `Pods`.
+If everything goes well, `KubeDB` Enterprise operator will update the replicas of `MongoDB` object and related `StatefulSets` and `Pods`.
 
 Let's wait for `MongoDBOpsRequest` to be `Successful`.  Run the following command to watch `MongoDBOpsRequest` CR,
 
@@ -508,7 +508,7 @@ mongodbopsrequest.ops.kubedb.com/mops-hscale-down-replicaset created
 
 #### Verify Replicaset replicas scaled down successfully 
 
-If everything goes well, `KubeDB` enterprise operator will update the replicas of `MongoDB` object and related `StatefulSets` and `Pods`.
+If everything goes well, `KubeDB` Enterprise operator will update the replicas of `MongoDB` object and related `StatefulSets` and `Pods`.
 
 Let's wait for `MongoDBOpsRequest` to be `Successful`.  Run the following command to watch `MongoDBOpsRequest` CR,
 

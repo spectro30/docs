@@ -51,11 +51,11 @@ Deploying MongoDB with TLS/SSL configuration process consists of the following s
 
 2. Then the user creates a `MongoDB` cr which refers to the `Issuer/ClusterIssuer` cr that the user created in the previous step.
 
-3. `KubeDB` community operator watches for the `MongoDB` cr.
+3. `KubeDB` Community operator watches for the `MongoDB` cr.
 
 4. When it finds one, it creates `Secret`, `Service`, etc. for the `MongoDB` database.
 
-5. `KubeDB` enterprise operator watches for `MongoDB`(5c), `Issuer/ClusterIssuer`(5b), `Secret` and `Service`(5a).
+5. `KubeDB` Enterprise operator watches for `MongoDB`(5c), `Issuer/ClusterIssuer`(5b), `Secret` and `Service`(5a).
 
 6. When it finds all the resources(`MongoDB`, `Issuer/ClusterIssuer`, `Secret`, `Service`), it creates `Certificates` by using `tls.issuerRef` and `tls.certificates` field specification from `MongoDB` cr.
 
@@ -63,7 +63,7 @@ Deploying MongoDB with TLS/SSL configuration process consists of the following s
 
 8. When it finds one, it creates certificate secrets `tls-secrets`(server, client, exporter secrets etc.) that holds the actual certificate signed by the CA.
 
-9. `KubeDB` community operator watches for the Certificate secrets `tls-secrets`.
+9. `KubeDB` Community operator watches for the Certificate secrets `tls-secrets`.
 
 10. When it finds all the tls-secret, it creates the related `StatefulSets` so that MongoDB database can be configured with TLS/SSL.
 

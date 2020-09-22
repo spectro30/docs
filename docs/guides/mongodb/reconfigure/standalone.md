@@ -14,13 +14,13 @@ section_menu_id: guides
 
 # Reconfigure MongoDB Standalone Database
 
-This guide will show you how to use `KubeDB` enterprise operator to reconfigure a MongoDB standalone database.
+This guide will show you how to use `KubeDB` Enterprise operator to reconfigure a MongoDB standalone database.
 
 ## Before You Begin
 
 - At first, you need to have a Kubernetes cluster, and the `kubectl` command-line tool must be configured to communicate with your cluster.
 
-- Install `KubeDB` community and enterprise operator in your cluster following the steps [here]().
+- Install `KubeDB` Community and Enterprise operator in your cluster following the steps [here]().
 
 - You should be familiar with the following `KubeDB` concepts:
   - [MongoDB](/docs/concepts/databases/mongodb.md)
@@ -200,7 +200,7 @@ mongodbopsrequest.ops.kubedb.com/mops-reconfigure-standalone created
 
 #### Verify the new configuration is working 
 
-If everything goes well, `KubeDB` enterprise operator will update the `configSource` of `MongoDB` object.
+If everything goes well, `KubeDB` Enterprise operator will update the `configSource` of `MongoDB` object.
 
 Let's wait for `MongoDBOpsRequest` to be `Successful`.  Run the following command to watch `MongoDBOpsRequest` CR,
 
@@ -397,7 +397,7 @@ mongodbopsrequest.ops.kubedb.com/mops-reconfigure-data-standalone created
 
 #### Verify the new configuration is working 
 
-If everything goes well, `KubeDB` enterprise operator will merge this new config with the existing configuration.
+If everything goes well, `KubeDB` Enterprise operator will merge this new config with the existing configuration.
 
 Let's wait for `MongoDBOpsRequest` to be `Successful`.  Run the following command to watch `MongoDBOpsRequest` CR,
 

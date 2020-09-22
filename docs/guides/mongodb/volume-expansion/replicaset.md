@@ -14,15 +14,15 @@ section_menu_id: guides
 
 # MongoDB Replicaset Volume Expansion
 
-This guide will show you how to use `KubeDB` enterprise operator to expand the volume of a MongoDB Replicaset database.
+This guide will show you how to use `KubeDB` Enterprise operator to expand the volume of a MongoDB Replicaset database.
 
 ## Before You Begin
 
 - At first, you need to have a Kubernetes cluster, and the `kubectl` command-line tool must be configured to communicate with your cluster.
 
-- You must have a `Storage Class`, that supports volume expansion.
+- You must have a `StorageClass` that supports volume expansion.
 
-- Install `KubeDB` community and enterprise operator in your cluster following the steps [here]().
+- Install `KubeDB` Community and Enterprise operator in your cluster following the steps [here]().
 
 - You should be familiar with the following `KubeDB` concepts:
   - [MongoDB](/docs/concepts/databases/mongodb.md)
@@ -151,7 +151,7 @@ mongodbopsrequest.ops.kubedb.com/mops-volume-exp-replicaset created
 
 #### Verify MongoDB replicaset volume expanded successfully 
 
-If everything goes well, `KubeDB` enterprise operator will update the volume size of `MongoDB` object and related `StatefulSets` and `Persistent Volumes`.
+If everything goes well, `KubeDB` Enterprise operator will update the volume size of `MongoDB` object and related `StatefulSets` and `Persistent Volumes`.
 
 Let's wait for `MongoDBOpsRequest` to be `Successful`.  Run the following command to watch `MongoDBOpsRequest` CR,
 

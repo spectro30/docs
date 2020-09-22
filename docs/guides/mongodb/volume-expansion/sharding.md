@@ -4,7 +4,7 @@ menu:
   docs_{{ .version }}:
     identifier: mg-volume-expansion-shard
     name: Sharding
-    parent:  mg-volume-expansion
+    parent: mg-volume-expansion
     weight: 40
 menu_name: docs_{{ .version }}
 section_menu_id: guides
@@ -14,15 +14,15 @@ section_menu_id: guides
 
 # MongoDB Sharded Database Volume Expansion
 
-This guide will show you how to use `KubeDB` enterprise operator to expand the volume of a MongoDB Sharded Database.
+This guide will show you how to use `KubeDB` Enterprise operator to expand the volume of a MongoDB Sharded Database.
 
 ## Before You Begin
 
 - At first, you need to have a Kubernetes cluster, and the `kubectl` command-line tool must be configured to communicate with your cluster.
 
-- You must have a `Storage Class`, that supports volume expansion.
+- You must have a `StorageClass` that supports volume expansion.
 
-- Install `KubeDB` community and enterprise operator in your cluster following the steps [here]().
+- Install `KubeDB` Community and Enterprise operator in your cluster following the steps [here]().
 
 - You should be familiar with the following `KubeDB` concepts:
   - [MongoDB](/docs/concepts/databases/mongodb.md)
@@ -41,7 +41,7 @@ namespace/demo created
 
 ## Expand Volume of Sharded Database
 
-Here, we are going to deploy a  `MongoDB` Sharded Database using a supported version by `KubeDB` operator. Then we are going to apply `MongoDBOpsRequest` to expand the volume of shard nodes and config servers.
+Here, we are going to deploy a `MongoDB` Sharded Database using a supported version by `KubeDB` operator. Then we are going to apply `MongoDBOpsRequest` to expand the volume of shard nodes and config servers.
 
 ### Prepare MongoDB Sharded Database
 
@@ -99,7 +99,7 @@ mongodb.kubedb.com/mg-sharding created
 Now, wait until `mg-sharding` has status `Running`. i.e,
 
 ```console
-$ kubectl get mg -n demo                                                               
+$ kubectl get mg -n demo
 NAME          VERSION    STATUS    AGE
 mg-sharding   3.6.8-v1   Running   2m45s
 ```
@@ -113,7 +113,7 @@ $ kubectl get sts -n demo mg-sharding-configsvr -o json | jq '.spec.volumeClaimT
 $ kubectl get sts -n demo mg-sharding-shard0 -o json | jq '.spec.volumeClaimTemplates[].spec.resources.requests.storage'
 "1Gi"
 
-$ kubectl get pv -n demo                                                                                          
+$ kubectl get pv -n demo
 NAME                                       CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS   CLAIM                                  STORAGECLASS   REASON   AGE
 pvc-06989d55-7b35-471e-872e-ed1d57264799   1Gi        RWO            Delete           Bound    demo/datadir-mg-sharding-shard1-1      standard                4m2s
 pvc-22bcb386-f3ca-4b5f-8de5-25547246169a   1Gi        RWO            Delete           Bound    demo/datadir-mg-sharding-shard2-1      standard                3m58s
@@ -164,11 +164,11 @@ $ kubectl apply -f https://github.com/kubedb/docs/raw/{{< param "info.version" >
 mongodbopsrequest.ops.kubedb.com/mops-volume-exp-shard created
 ```
 
-#### Verify MongoDB shard volumes expanded successfully 
+#### Verify MongoDB shard volumes expanded successfully
 
-If everything goes well, `KubeDB` enterprise operator will update the volume size of `MongoDB` object and related `StatefulSets` and `Persistent Volumes`.
+If everything goes well, `KubeDB` Enterprise operator will update the volume size of `MongoDB` object and related `StatefulSets` and `Persistent Volumes`.
 
-Let's wait for `MongoDBOpsRequest` to be `Successful`.  Run the following command to watch `MongoDBOpsRequest` CR,
+Let's wait for `MongoDBOpsRequest` to be `Successful`. Run the following command to watch `MongoDBOpsRequest` CR,
 
 ```console
 $ kubectl get mongodbopsrequest -n demo
@@ -180,7 +180,7 @@ mops-volume-exp-shard   VolumeExpansion   Successful   3m49s
 We can see from the above output that the `MongoDBOpsRequest` has succeeded. If we describe the `MongoDBOpsRequest` we will get an overview of the steps that were followed to expand the volume of the database.
 
 ```console
-$ kubectl describe mongodbopsrequest -n demo mops-volume-exp-shard   
+$ kubectl describe mongodbopsrequest -n demo mops-volume-exp-shard
 Name:         mops-volume-exp-shard
 Namespace:    demo
 Labels:       <none>
@@ -243,7 +243,7 @@ Now, we are going to verify from the `Statefulset`, and the `Persistent Volumes`
 $ kubectl get sts -n demo mg-sharding-shard0 -o json | jq '.spec.volumeClaimTemplates[].spec.resources.requests.storage'                                             10:15:51
 "2Gi"
 
-$ kubectl get pv -n demo                                                                                          
+$ kubectl get pv -n demo
 NAME                                       CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS   CLAIM                                  STORAGECLASS   REASON   AGE
 pvc-06989d55-7b35-471e-872e-ed1d57264799   2Gi        RWO            Delete           Bound    demo/datadir-mg-sharding-shard1-1      standard                12m
 pvc-22bcb386-f3ca-4b5f-8de5-25547246169a   2Gi        RWO            Delete           Bound    demo/datadir-mg-sharding-shard2-1      standard                12m
@@ -256,7 +256,6 @@ pvc-deca2307-6c02-4ca6-84b9-461995ec394d   1Gi        RWO            Delete     
 ```
 
 The above output verifies that we have successfully expanded the volume of the shard nodes of the MongoDB database.
-
 
 ### Volume Expansion of ConfigServer Nodes
 
@@ -293,11 +292,11 @@ $ kubectl apply -f https://github.com/kubedb/docs/raw/{{< param "info.version" >
 mongodbopsrequest.ops.kubedb.com/mops-volume-exp-configserver created
 ```
 
-#### Verify MongoDB config server volumes expanded successfully 
+#### Verify MongoDB config server volumes expanded successfully
 
-If everything goes well, `KubeDB` enterprise operator will update the volume size of `MongoDB` object and related `StatefulSets` and `Persistent Volumes`.
+If everything goes well, `KubeDB` Enterprise operator will update the volume size of `MongoDB` object and related `StatefulSets` and `Persistent Volumes`.
 
-Let's wait for `MongoDBOpsRequest` to be `Successful`.  Run the following command to watch `MongoDBOpsRequest` CR,
+Let's wait for `MongoDBOpsRequest` to be `Successful`. Run the following command to watch `MongoDBOpsRequest` CR,
 
 ```console
 $ kubectl get mongodbopsrequest -n demo
@@ -309,7 +308,7 @@ mops-volume-exp-configserver   VolumeExpansion   Successful   111s
 We can see from the above output that the `MongoDBOpsRequest` has succeeded. If we describe the `MongoDBOpsRequest` we will get an overview of the steps that were followed to expand the volume of the database.
 
 ```console
-$ kubectl describe mongodbopsrequest -n demo mops-volume-exp-configserver   
+$ kubectl describe mongodbopsrequest -n demo mops-volume-exp-configserver
 Name:         mops-volume-exp-configserver
 Namespace:    demo
 Labels:       <none>
@@ -372,7 +371,7 @@ Now, we are going to verify from the `Statefulset`, and the `Persistent Volumes`
 $ kubectl get sts -n demo mg-sharding-configsvr -o json | jq '.spec.volumeClaimTemplates[].spec.resources.requests.storage'                                             10:15:51
 "2Gi"
 
-$ kubectl get pv -n demo                                                                                          
+$ kubectl get pv -n demo
 NAME                                       CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS   CLAIM                                  STORAGECLASS   REASON   AGE
 pvc-06989d55-7b35-471e-872e-ed1d57264799   2Gi        RWO            Delete           Bound    demo/datadir-mg-sharding-shard1-1      standard                17m
 pvc-22bcb386-f3ca-4b5f-8de5-25547246169a   2Gi        RWO            Delete           Bound    demo/datadir-mg-sharding-shard2-1      standard                17m

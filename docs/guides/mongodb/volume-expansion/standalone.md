@@ -4,7 +4,7 @@ menu:
   docs_{{ .version }}:
     identifier: mg-volume-expansion-standalone
     name: Standalone
-    parent:  mg-volume-expansion
+    parent: mg-volume-expansion
     weight: 20
 menu_name: docs_{{ .version }}
 section_menu_id: guides
@@ -14,15 +14,15 @@ section_menu_id: guides
 
 # MongoDB Standalone Volume Expansion
 
-This guide will show you how to use `KubeDB` enterprise operator to expand the volume of a MongoDB standalone database.
+This guide will show you how to use `KubeDB` Enterprise operator to expand the volume of a MongoDB standalone database.
 
 ## Before You Begin
 
 - At first, you need to have a Kubernetes cluster, and the `kubectl` command-line tool must be configured to communicate with your cluster.
 
-- You must have a `Storage Class`, that supports volume expansion.
+- You must have a `StorageClass` that supports volume expansion.
 
-- Install `KubeDB` community and enterprise operator in your cluster following the steps [here]().
+- Install `KubeDB` Community and Enterprise operator in your cluster following the steps [here]().
 
 - You should be familiar with the following `KubeDB` concepts:
   - [MongoDB](/docs/concepts/databases/mongodb.md)
@@ -40,7 +40,7 @@ namespace/demo created
 
 ## Expand Volume of Standalone Database
 
-Here, we are going to deploy a  `MongoDB` standalone using a supported version by `KubeDB` operator. Then we are going to apply `MongoDBOpsRequest` to expand its volume.
+Here, we are going to deploy a `MongoDB` standalone using a supported version by `KubeDB` operator. Then we are going to apply `MongoDBOpsRequest` to expand its volume.
 
 ### Prepare MongoDB Standalone Database
 
@@ -56,7 +56,7 @@ We can see from the output the `standard` storage class has `ALLOWVOLUMEEXPANSIO
 
 Now, we are going to deploy a `MongoDB` standalone database with version `3.6.8`.
 
-#### Deploy MongoDB standalone 
+#### Deploy MongoDB standalone
 
 In this section, we are going to deploy a MongoDB standalone database with 1GB volume. Then, in the next section we will expand its volume to 2GB using `MongoDBOpsRequest` CRD. Below is the YAML of the `MongoDB` CR that we are going to create,
 
@@ -72,7 +72,7 @@ spec:
   storage:
     storageClassName: "standard"
     accessModes:
-    - ReadWriteOnce
+      - ReadWriteOnce
     resources:
       requests:
         storage: 1Gi
@@ -99,7 +99,7 @@ Let's check volume size from statefulset, and from the persistent volume,
 $ kubectl get sts -n demo mg-standalone -o json | jq '.spec.volumeClaimTemplates[].spec.resources.requests.storage'
 "1Gi"
 
-$ kubectl get pv -n demo                                                                                          
+$ kubectl get pv -n demo
 NAME                                       CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS   CLAIM                          STORAGECLASS   REASON   AGE
 pvc-d0b07657-a012-4384-862a-b4e437774287   1Gi        RWO            Delete           Bound    demo/datadir-mg-standalone-0   standard                49s
 ```
@@ -143,17 +143,15 @@ $ kubectl apply -f https://github.com/kubedb/docs/raw/{{< param "info.version" >
 mongodbopsrequest.ops.kubedb.com/mops-volume-exp-standalone created
 ```
 
-#### Verify MongoDB Standalone  volume expanded successfully 
+#### Verify MongoDB Standalone volume expanded successfully
 
-If everything goes well, `KubeDB` enterprise operator will update the volume size of `MongoDB` object and related `StatefulSets` and `Persistent Volume`.
+If everything goes well, `KubeDB` Enterprise operator will update the volume size of `MongoDB` object and related `StatefulSets` and `Persistent Volume`.
 
-Let's wait for `MongoDBOpsRequest` to be `Successful`.  Run the following command to watch `MongoDBOpsRequest` CR,
+Let's wait for `MongoDBOpsRequest` to be `Successful`. Run the following command to watch `MongoDBOpsRequest` CR,
 
 ```console
 $ kubectl get mongodbopsrequest -n demo
 Every 2.0s: kubectl get mongodbopsrequest -n demo
-
-
 ```
 
 We can see from the above output that the `MongoDBOpsRequest` has succeeded. If we describe the `MongoDBOpsRequest` we will get an overview of the steps that were followed to expand the volume of the database.
@@ -222,7 +220,7 @@ Now, we are going to verify from the `Statefulset`, and the `Persistent Volume` 
 $ kubectl get sts -n demo mg-standalone -o json | jq '.spec.volumeClaimTemplates[].spec.resources.requests.storage'
 "2Gi"
 
-$ kubectl get pv -n demo                                                                                          
+$ kubectl get pv -n demo
 NAME                                       CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS   CLAIM                          STORAGECLASS   REASON   AGE
 pvc-d0b07657-a012-4384-862a-b4e437774287   2Gi        RWO            Delete           Bound    demo/datadir-mg-standalone-0   standard                4m29s
 ```
