@@ -13,3 +13,13 @@ spec:
         mongod.conf: |
           net:
             maxIncomingConnections: 30000
+    configServer:
+      data:
+        mongod.conf: |
+          net:
+            maxIncomingConnections: 30000
+    mongos:
+      data:
+        mongod.conf: |
+          net:
+            maxIncomingConnections: 30000

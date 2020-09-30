@@ -65,31 +65,11 @@ spec:
   databaseRef:
     name: mg-sharding
   horizontalScaling:
+    shard:
+      shards: 3
+      replicas: 2
     configServer:
       replicas: 2
-status:
-  conditions:
-    - lastTransitionTime: "2020-08-25T18:22:38Z"
-      message: Successfully completed the modification process
-      observedGeneration: 1
-      reason: Successful
-      status: "True"
-      type: Successful
-  observedGeneration: 1
-  phase: Successful
-```
-
-```yaml
-apiVersion: ops.kubedb.com/v1alpha1
-kind: MongoDBOpsRequest
-metadata:
-  name: mops-hscale-down-mongos
-  namespace: demo
-spec:
-  type: HorizontalScaling
-  databaseRef:
-    name: mg-sharding
-  horizontalScaling:
     mongos:
       replicas: 2
 status:
@@ -128,32 +108,6 @@ status:
   phase: Successful
 ```
 
-```yaml
-apiVersion: ops.kubedb.com/v1alpha1
-kind: MongoDBOpsRequest
-metadata:
-  name: mops-hscale-down-shard
-  namespace: demo
-spec:
-  type: HorizontalScaling
-  databaseRef:
-    name: mg-sharding
-  horizontalScaling:
-    shard:
-      shards: 3
-      replicas: 2
-status:
-  conditions:
-    - lastTransitionTime: "2020-08-25T18:22:38Z"
-      message: Successfully completed the modification process
-      observedGeneration: 1
-      reason: Successful
-      status: "True"
-      type: Successful
-  observedGeneration: 1
-  phase: Successful
-```
-
 **Sample `MongoDBOpsRequest` Objects for Vertical Scaling of different component of the database:**
 
 ```yaml
@@ -174,30 +128,14 @@ spec:
       limits:
         memory: "250Mi"
         cpu: "0.2"
-status:
-  conditions:
-    - lastTransitionTime: "2020-08-25T18:22:38Z"
-      message: Successfully completed the modification process
-      observedGeneration: 1
-      reason: Successful
-      status: "True"
-      type: Successful
-  observedGeneration: 1
-  phase: Successful
-```
-
-```yaml
-apiVersion: ops.kubedb.com/v1alpha1
-kind: MongoDBOpsRequest
-metadata:
-  name: mops-vscale-mongos
-  namespace: demo
-spec:
-  type: VerticalScaling
-  databaseRef:
-    name: mg-sharding
-  verticalScaling:
     mongos:
+      requests:
+        memory: "150Mi"
+        cpu: "0.1"
+      limits:
+        memory: "250Mi"
+        cpu: "0.2"
+    shard:
       requests:
         memory: "150Mi"
         cpu: "0.1"
@@ -276,36 +214,6 @@ status:
   phase: Successful
 ```
 
-```yaml
-apiVersion: ops.kubedb.com/v1alpha1
-kind: MongoDBOpsRequest
-metadata:
-  name: mops-vscale-shard
-  namespace: demo
-spec:
-  type: VerticalScaling
-  databaseRef:
-    name: mg-sharding
-  verticalScaling:
-    shard:
-      requests:
-        memory: "150Mi"
-        cpu: "0.1"
-      limits:
-        memory: "250Mi"
-        cpu: "0.2"
-status:
-  conditions:
-    - lastTransitionTime: "2020-08-25T18:22:38Z"
-      message: Successfully completed the modification process
-      observedGeneration: 1
-      reason: Successful
-      status: "True"
-      type: Successful
-  observedGeneration: 1
-  phase: Successful
-```
-
 **Sample `MongoDBOpsRequest` Objects for Reconfiguring different database components:**
 
 ```yaml
@@ -348,6 +256,16 @@ spec:
     name: mg-sharding
   customConfig:
     shard:
+      data:
+        mongod.conf: |
+          net:
+            maxIncomingConnections: 30000
+    configServer:
+      data:
+        mongod.conf: |
+          net:
+            maxIncomingConnections: 30000
+    mongos:
       data:
         mongod.conf: |
           net:
@@ -432,6 +350,12 @@ spec:
     shard:
       configMap:
         name: new-custom-config
+    confiServer:
+      configMap:
+        name: new-custom-config
+    mongos:
+      configMap:
+        name: new-custom-config
 status:
   conditions:
     - lastTransitionTime: "2020-08-25T18:22:38Z"
@@ -476,30 +400,6 @@ status:
 apiVersion: ops.kubedb.com/v1alpha1
 kind: MongoDBOpsRequest
 metadata:
-  name: mops-volume-exp-configserver
-  namespace: demo
-spec:
-  type: VolumeExpansion
-  databaseRef:
-    name: mg-sharding
-  volumeExpansion:
-    configServer: 2Gi
-status:
-  conditions:
-    - lastTransitionTime: "2020-08-25T18:22:38Z"
-      message: Successfully completed the modification process
-      observedGeneration: 1
-      reason: Successful
-      status: "True"
-      type: Successful
-  observedGeneration: 1
-  phase: Successful
-```
-
-```yaml
-apiVersion: ops.kubedb.com/v1alpha1
-kind: MongoDBOpsRequest
-metadata:
   name: mops-volume-exp-replicaset
   namespace: demo
 spec:
@@ -532,6 +432,7 @@ spec:
     name: mg-sharding
   volumeExpansion:
     shard: 2Gi
+    configServer: 2Gi
 status:
   conditions:
     - lastTransitionTime: "2020-08-25T18:22:38Z"

@@ -9,3 +9,4 @@ spec:
     name: mg-sharding
   volumeExpansion:
     shard: 2Gi
+    configServer: 2Gi

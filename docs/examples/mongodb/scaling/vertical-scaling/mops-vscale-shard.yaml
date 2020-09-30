@@ -15,3 +15,17 @@ spec:
       limits:
         memory: "250Mi"
         cpu: "0.2"
+    configServer:
+      requests:
+        memory: "150Mi"
+        cpu: "0.1"
+      limits:
+        memory: "250Mi"
+        cpu: "0.2"
+    mongos:
+      requests:
+        memory: "150Mi"
+        cpu: "0.1"
+      limits:
+        memory: "250Mi"
+        cpu: "0.2"

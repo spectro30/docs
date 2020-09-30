@@ -11,3 +11,9 @@ spec:
     shard:
       configMap:
         name: new-custom-config
+    configServer:
+      configMap:
+        name: new-custom-config
+    mongos:
+      configMap:
+        name: new-custom-config

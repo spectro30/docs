@@ -74,6 +74,9 @@ spec:
   shardTopology:
     configServer:
       replicas: 2
+      configSource:
+          configMap:
+            name: mg-custom-config
       storage:
         resources:
           requests:
@@ -81,6 +84,9 @@ spec:
         storageClassName: standard
     mongos:
       replicas: 2
+      configSource:
+          configMap:
+            name: mg-custom-config
     shard:
       replicas: 2
       shards: 3
@@ -117,76 +123,44 @@ $ kubectl get secrets -n demo mg-sharding-auth -o jsonpath='{.data.\username}' |
 root
 
 $ kubectl get secrets -n demo mg-sharding-auth -o jsonpath='{.data.\password}' | base64 -d                                                                         11:10:44
-xBC-EwMFivFCgUlK
+Dv8F55zVNiEkhHM6
 ```
 
-Now let's connect to a mongodb instance and run a mongodb internal command to check the configuration we have provided.
+Now let's connect to a mongodb instance from each type of nodes and run a mongodb internal command to check the configuration we have provided.
 
 ```console
-$ kubectl exec -n demo  mg-sharding-shard0-0  -- mongo admin -u root -p xBC-EwMFivFCgUlK --eval "db._adminCommand( {getCmdLineOpts: 1})" --quiet                     21:12:47
-      
+$ kubectl exec -n demo  mg-sharding-mongos-0  -- mongo admin -u root -p Dv8F55zVNiEkhHM6 --eval "db._adminCommand( {getCmdLineOpts: 1}).parsed.net" --quiet
   {
-  	"argv" : [
-  		"mongod",
-  		"--dbpath=/data/db",
-  		"--auth",
-  		"--bind_ip=0.0.0.0",
-  		"--port=27017",
-  		"--shardsvr",
-  		"--replSet=shard0",
-  		"--clusterAuthMode=keyFile",
-  		"--keyFile=/data/configdb/key.txt",
-  		"--sslMode=disabled",
-  		"--config=/data/configdb/mongod.conf"
-  	],
-  	"parsed" : {
-  		"config" : "/data/configdb/mongod.conf",
-  		"net" : {
-  			"bindIp" : "0.0.0.0",
-  			"maxIncomingConnections" : 10000,
-  			"port" : 27017,
-  			"ssl" : {
-  				"mode" : "disabled"
-  			}
-  		},
-  		"replication" : {
-  			"replSet" : "shard0"
-  		},
-  		"security" : {
-  			"authorization" : "enabled",
-  			"clusterAuthMode" : "keyFile",
-  			"keyFile" : "/data/configdb/key.txt"
-  		},
-  		"sharding" : {
-  			"clusterRole" : "shardsvr"
-  		},
-  		"storage" : {
-  			"dbPath" : "/data/db"
-  		}
-  	},
-  	"ok" : 1,
-  	"operationTime" : Timestamp(1598454760, 1),
-  	"$gleStats" : {
-  		"lastOpTime" : Timestamp(0, 0),
-  		"electionId" : ObjectId("7fffffff0000000000000002")
-  	},
-  	"$configServerState" : {
-  		"opTime" : {
-  			"ts" : Timestamp(1598454762, 2),
-  			"t" : NumberLong(2)
-  		}
-  	},
-  	"$clusterTime" : {
-  		"clusterTime" : Timestamp(1598454762, 2),
-  		"signature" : {
-  			"hash" : BinData(0,"tdnM1S4fkfbLB+1azg6xiWHeWy8="),
-  			"keyId" : NumberLong("6865309861773574160")
-  		}
+  	"bindIp" : "0.0.0.0",
+  	"maxIncomingConnections" : 10000,
+  	"port" : 27017,
+  	"ssl" : {
+  		"mode" : "disabled"
+  	}
+  }
+
+$ kubectl exec -n demo  mg-sharding-configsvr-0  -- mongo admin -u root -p Dv8F55zVNiEkhHM6 --eval "db._adminCommand( {getCmdLineOpts: 1}).parsed.net" --quiet
+  {
+  	"bindIp" : "0.0.0.0",
+  	"maxIncomingConnections" : 10000,
+  	"port" : 27017,
+  	"ssl" : {
+  		"mode" : "disabled"
+  	}
+  }
+
+$ kubectl exec -n demo  mg-sharding-shard0-0  -- mongo admin -u root -p Dv8F55zVNiEkhHM6 --eval "db._adminCommand( {getCmdLineOpts: 1}).parsed.net" --quiet
+  {
+  	"bindIp" : "0.0.0.0",
+  	"maxIncomingConnections" : 10000,
+  	"port" : 27017,
+  	"ssl" : {
+  		"mode" : "disabled"
   	}
   }
 ```
 
-As we can see from the configuration of running mongodb, the value of `maxIncomingConnections` has been set to `10000`.
+As we can see from the configuration of running mongodb, the value of `maxIncomingConnections` has been set to `10000` in all nodes.
 
 ### Reconfigure using new ConfigMap
 
@@ -225,19 +199,29 @@ spec:
     shard:
       configMap:
         name: new-custom-config
+    configServer:
+      configMap:
+        name: new-custom-config 
+    mongos:
+      configMap:
+        name: new-custom-config   
 ```
 
 Here,
 
 - `spec.databaseRef.name` specifies that we are reconfiguring `mops-reconfigure-shard` database.
 - `spec.type` specifies that we are performing `Reconfigure` on our database.
-- `spec.customConfig.shard.configMap.name` specifies the name of the new configmap.
+- `spec.customConfig.shard.configMap.name` specifies the name of the new configmap for shard nodes.
+- `spec.customConfig.configServer.configMap.name` specifies the name of the new configmap for configServer nodes.
+- `spec.customConfig.mongos.configMap.name` specifies the name of the new configmap for mongos nodes.
+
+> **Note:** If you don't want to reconfigure all the components together, you can only specify the components (shard, configServer and mongos) that you want to reconfigure.
 
 Let's create the `MongoDBOpsRequest` CR we have shown above,
 
 ```console
 $ kubectl apply -f https://github.com/kubedb/docs/raw/{{< param "info.version" >}}/docs/examples/mongodb/reconfigure/mops-reconfigure-shard.yaml
-mongodbopsrequest.ops.kubedb.com/ops-reconfigure-shard created
+mongodbopsrequest.ops.kubedb.com/mops-reconfigure-shard created
 ```
 
 #### Verify the new configuration is working 
@@ -260,13 +244,12 @@ $ kubectl describe mongodbopsrequest -n demo mops-reconfigure-shard
 Name:         mops-reconfigure-shard
 Namespace:    demo
 Labels:       <none>
-Annotations:  API Version:  ops.kubedb.com/v1alpha1
+Annotations:  <none>
+API Version:  ops.kubedb.com/v1alpha1
 Kind:         MongoDBOpsRequest
 Metadata:
-  Creation Timestamp:  2020-08-26T15:15:32Z
-  Finalizers:
-    kubedb.com
-  Generation:  1
+  Creation Timestamp:  2020-09-29T17:16:47Z
+  Generation:          1
   Managed Fields:
     API Version:  ops.kubedb.com/v1alpha1
     Fields Type:  FieldsV1
@@ -279,6 +262,16 @@ Metadata:
         .:
         f:customConfig:
           .:
+          f:configServer:
+            .:
+            f:configMap:
+              .:
+              f:name:
+          f:mongos:
+            .:
+            f:configMap:
+              .:
+              f:name:
           f:shard:
             .:
             f:configMap:
@@ -288,14 +281,12 @@ Metadata:
           .:
           f:name:
         f:type:
-    Manager:      kubectl
+    Manager:      kubectl-client-side-apply
     Operation:    Update
-    Time:         2020-08-26T15:15:32Z
+    Time:         2020-09-29T17:16:47Z
     API Version:  ops.kubedb.com/v1alpha1
     Fields Type:  FieldsV1
     fieldsV1:
-      f:metadata:
-        f:finalizers:
       f:status:
         .:
         f:conditions:
@@ -303,12 +294,18 @@ Metadata:
         f:phase:
     Manager:         kubedb-enterprise
     Operation:       Update
-    Time:            2020-08-26T15:18:32Z
-  Resource Version:  6139144
+    Time:            2020-09-29T17:20:43Z
+  Resource Version:  1857484
   Self Link:         /apis/ops.kubedb.com/v1alpha1/namespaces/demo/mongodbopsrequests/mops-reconfigure-shard
-  UID:               8780fdc4-a7e8-4445-93fb-5d9b717a262e
+  UID:               fa02b9c6-83bd-4835-b72f-a027a0c8cf51
 Spec:
   Custom Config:
+    Config Server:
+      Config Map:
+        Name:  new-custom-config
+    Mongos:
+      Config Map:
+        Name:  new-custom-config
     Shard:
       Config Map:
         Name:  new-custom-config
@@ -317,31 +314,43 @@ Spec:
   Type:    Reconfigure
 Status:
   Conditions:
-    Last Transition Time:  2020-08-26T15:15:32Z
-    Message:               MongoDB ops request is being processed
+    Last Transition Time:  2020-09-29T17:16:47Z
+    Message:               MongoDB ops request is reconfiguring database
     Observed Generation:   1
-    Reason:                Scaling
+    Reason:                Reconfigure
     Status:                True
-    Type:                  Scaling
-    Last Transition Time:  2020-08-26T15:15:32Z
+    Type:                  Reconfigure
+    Last Transition Time:  2020-09-29T17:16:47Z
     Message:               Successfully paused mongodb: mg-sharding
     Observed Generation:   1
     Reason:                PauseDatabase
     Status:                True
     Type:                  PauseDatabase
-    Last Transition Time:  2020-08-26T15:18:32Z
-    Message:               Successfully Reconfigured mongodb
+    Last Transition Time:  2020-09-29T17:17:32Z
+    Message:               Successfully Reconfigured MongoDB
+    Observed Generation:   1
+    Reason:                ReconfigureMongos
+    Status:                True
+    Type:                  ReconfigureMongos
+    Last Transition Time:  2020-09-29T17:18:22Z
+    Message:               Successfully Reconfigured MongoDB
+    Observed Generation:   1
+    Reason:                ReconfigureConfigServer
+    Status:                True
+    Type:                  ReconfigureConfigServer
+    Last Transition Time:  2020-09-29T17:20:42Z
+    Message:               Successfully Reconfigured MongoDB
     Observed Generation:   1
     Reason:                ReconfigureShard
     Status:                True
     Type:                  ReconfigureShard
-    Last Transition Time:  2020-08-26T15:18:32Z
-    Message:               Succefully Resumed mongodb: mg-sharding
+    Last Transition Time:  2020-09-29T17:20:42Z
+    Message:               Successfully Resumed mongodb: mg-sharding
     Observed Generation:   1
     Reason:                ResumeDatabase
     Status:                True
     Type:                  ResumeDatabase
-    Last Transition Time:  2020-08-26T15:18:32Z
+    Last Transition Time:  2020-09-29T17:20:43Z
     Message:               Successfully completed the modification process.
     Observed Generation:   1
     Reason:                Successful
@@ -350,84 +359,54 @@ Status:
   Observed Generation:     1
   Phase:                   Successful
 Events:
-  Type    Reason            Age    From                        Message
-  ----    ------            ----   ----                        -------
-  Normal  PauseDatabase     3m42s  KubeDB Enterprise Operator  Pausing Mongodb mg-sharding in Namespace demo
-  Normal  PauseDatabase     3m42s  KubeDB Enterprise Operator  Successfully Paused Mongodb mg-sharding in Namespace demo
-  Normal  ReconfigureShard  42s    KubeDB Enterprise Operator  Successfully Reconfigured mongodb
-  Normal  ResumeDatabase    42s    KubeDB Enterprise Operator  Resuming MongoDB
-  Normal  ResumeDatabase    42s    KubeDB Enterprise Operator  Successfully Started Balancer
-  Normal  Successful        42s    KubeDB Enterprise Operator  Successfully Reconfigured Database
+  Type    Reason                   Age    From                        Message
+  ----    ------                   ----   ----                        -------
+  Normal  PauseDatabase            5m     KubeDB Enterprise Operator  Pausing MongoDB mg-sharding in Namespace demo
+  Normal  PauseDatabase            5m     KubeDB Enterprise Operator  Successfully Paused MongoDB mg-sharding in Namespace demo
+  Normal  ReconfigureMongos        4m15s  KubeDB Enterprise Operator  Successfully Reconfigured MongoDB
+  Normal  ReconfigureConfigServer  3m25s  KubeDB Enterprise Operator  Successfully Reconfigured MongoDB
+  Normal  ReconfigureShard         65s    KubeDB Enterprise Operator  Successfully Reconfigured MongoDB
+  Normal  ResumeDatabase           65s    KubeDB Enterprise Operator  Resuming MongoDB
+  Normal  ResumeDatabase           65s    KubeDB Enterprise Operator  Successfully Started Balancer
+  Normal  Successful               65s    KubeDB Enterprise Operator  Successfully Reconfigured Database
+  Normal  Successful               64s    KubeDB Enterprise Operator  Successfully Reconfigured Database
 ```
 
-Now let's connect to a mongodb instance and run a mongodb internal command to check the new configuration we have provided.
+Now let's connect to a mongodb instance from each type of nodes and run a mongodb internal command to check the new configuration we have provided.
 
 ```console
-$ kubectl exec -n demo  mg-sharding-shard0-0  -- mongo admin -u root -p xBC-EwMFivFCgUlK --eval "db._adminCommand( {getCmdLineOpts: 1})" --quiet                     21:20:06
-     
+$ kubectl exec -n demo  mg-sharding-mongos-0  -- mongo admin -u root -p Dv8F55zVNiEkhHM6 --eval "db._adminCommand( {getCmdLineOpts: 1}).parsed.net" --quiet
   {
-  	"argv" : [
-  		"mongod",
-  		"--dbpath=/data/db",
-  		"--auth",
-  		"--bind_ip=0.0.0.0",
-  		"--port=27017",
-  		"--shardsvr",
-  		"--replSet=shard0",
-  		"--clusterAuthMode=keyFile",
-  		"--keyFile=/data/configdb/key.txt",
-  		"--sslMode=disabled",
-  		"--config=/data/configdb/mongod.conf"
-  	],
-  	"parsed" : {
-  		"config" : "/data/configdb/mongod.conf",
-  		"net" : {
-  			"bindIp" : "0.0.0.0",
-  			"maxIncomingConnections" : 20000,
-  			"port" : 27017,
-  			"ssl" : {
-  				"mode" : "disabled"
-  			}
-  		},
-  		"replication" : {
-  			"replSet" : "shard0"
-  		},
-  		"security" : {
-  			"authorization" : "enabled",
-  			"clusterAuthMode" : "keyFile",
-  			"keyFile" : "/data/configdb/key.txt"
-  		},
-  		"sharding" : {
-  			"clusterRole" : "shardsvr"
-  		},
-  		"storage" : {
-  			"dbPath" : "/data/db"
-  		}
-  	},
-  	"ok" : 1,
-  	"operationTime" : Timestamp(1598455205, 1),
-  	"$gleStats" : {
-  		"lastOpTime" : Timestamp(0, 0),
-  		"electionId" : ObjectId("7fffffff0000000000000004")
-  	},
-  	"$configServerState" : {
-  		"opTime" : {
-  			"ts" : Timestamp(1598455204, 1),
-  			"t" : NumberLong(2)
-  		}
-  	},
-  	"$clusterTime" : {
-  		"clusterTime" : Timestamp(1598455205, 1),
-  		"signature" : {
-  			"hash" : BinData(0,"CZBx5T6rU062k9eWHd8eov6Hqb8="),
-  			"keyId" : NumberLong("6865309861773574160")
-  		}
+  	"bindIp" : "0.0.0.0",
+  	"maxIncomingConnections" : 20000,
+  	"port" : 27017,
+  	"ssl" : {
+  		"mode" : "disabled"
+  	}
+  }
+
+$ kubectl exec -n demo  mg-sharding-configsvr-0  -- mongo admin -u root -p Dv8F55zVNiEkhHM6 --eval "db._adminCommand( {getCmdLineOpts: 1}).parsed.net" --quiet
+  {
+  	"bindIp" : "0.0.0.0",
+  	"maxIncomingConnections" : 20000,
+  	"port" : 27017,
+  	"ssl" : {
+  		"mode" : "disabled"
+  	}
+  }
+
+$ kubectl exec -n demo  mg-sharding-shard0-0  -- mongo admin -u root -p Dv8F55zVNiEkhHM6 --eval "db._adminCommand( {getCmdLineOpts: 1}).parsed.net" --quiet
+  {
+  	"bindIp" : "0.0.0.0",
+  	"maxIncomingConnections" : 20000,
+  	"port" : 27017,
+  	"ssl" : {
+  		"mode" : "disabled"
   	}
   }
 ```
 
-As we can see from the configuration of running mongodb, the value of `maxIncomingConnections` has been changed from `10000` to `20000`. So the reconfiguration of the database is successful.
-
+As we can see from the configuration of running mongodb, the value of `maxIncomingConnections` has been changed from `10000` to `20000` in all type of nodes. So the reconfiguration of the database is successful.
 
 ### Reconfigure using new Data
 
@@ -453,13 +432,27 @@ spec:
         mongod.conf: |
           net:
             maxIncomingConnections: 30000
+    configServer:
+      data:
+        mongod.conf: |
+          net:
+            maxIncomingConnections: 30000
+    mongos:
+      data:
+        mongod.conf: |
+          net:
+            maxIncomingConnections: 30000
 ```
 
 Here,
 
 - `spec.databaseRef.name` specifies that we are reconfiguring `mops-reconfigure-data-shard` database.
 - `spec.type` specifies that we are performing `Reconfigure` on our database.
-- `spec.customConfig.shard.data` specifies the new configuration that will be merged in the existing configMap.
+- `spec.customConfig.shard.data` specifies the new configuration that will be merged in the existing configMap for shard nodes.
+- `spec.customConfig.configServer.data` specifies the new configuration that will be merged in the existing configMap for configServer nodes.
+- `spec.customConfig.mongos.data` specifies the new configuration that will be merged in the existing configMap for mongos nodes.
+
+> **Note:** If you don't want to reconfigure all the components together, you can only specify the components (shard, configServer and mongos) that you want to reconfigure.
 
 Let's create the `MongoDBOpsRequest` CR we have shown above,
 
@@ -488,13 +481,12 @@ $ kubectl describe mongodbopsrequest -n demo mops-reconfigure-data-shard
 Name:         mops-reconfigure-data-shard
 Namespace:    demo
 Labels:       <none>
-Annotations:  API Version:  ops.kubedb.com/v1alpha1
+Annotations:  <none>
+API Version:  ops.kubedb.com/v1alpha1
 Kind:         MongoDBOpsRequest
 Metadata:
-  Creation Timestamp:  2020-08-26T15:27:34Z
-  Finalizers:
-    kubedb.com
-  Generation:  1
+  Creation Timestamp:  2020-09-29T17:23:23Z
+  Generation:          1
   Managed Fields:
     API Version:  ops.kubedb.com/v1alpha1
     Fields Type:  FieldsV1
@@ -507,6 +499,16 @@ Metadata:
         .:
         f:customConfig:
           .:
+          f:configServer:
+            .:
+            f:data:
+              .:
+              f:mongod.conf:
+          f:mongos:
+            .:
+            f:data:
+              .:
+              f:mongod.conf:
           f:shard:
             .:
             f:data:
@@ -516,14 +518,12 @@ Metadata:
           .:
           f:name:
         f:type:
-    Manager:      kubectl
+    Manager:      kubectl-client-side-apply
     Operation:    Update
-    Time:         2020-08-26T15:27:34Z
+    Time:         2020-09-29T17:23:23Z
     API Version:  ops.kubedb.com/v1alpha1
     Fields Type:  FieldsV1
     fieldsV1:
-      f:metadata:
-        f:finalizers:
       f:status:
         .:
         f:conditions:
@@ -531,12 +531,22 @@ Metadata:
         f:phase:
     Manager:         kubedb-enterprise
     Operation:       Update
-    Time:            2020-08-26T15:30:19Z
-  Resource Version:  6148406
+    Time:            2020-09-29T17:27:08Z
+  Resource Version:  1858942
   Self Link:         /apis/ops.kubedb.com/v1alpha1/namespaces/demo/mongodbopsrequests/mops-reconfigure-data-shard
-  UID:               17889a3e-aed7-403c-9821-581a3ff5ccfd
+  UID:               05849063-3e57-4441-a6da-7a1c5393989a
 Spec:
   Custom Config:
+    Config Server:
+      Data:
+        mongod.conf:  net:
+  maxIncomingConnections: 30000
+
+    Mongos:
+      Data:
+        mongod.conf:  net:
+  maxIncomingConnections: 30000
+
     Shard:
       Data:
         mongod.conf:  net:
@@ -547,25 +557,37 @@ Spec:
   Type:    Reconfigure
 Status:
   Conditions:
-    Last Transition Time:  2020-08-26T15:27:34Z
-    Message:               MongoDB ops request is being processed
+    Last Transition Time:  2020-09-29T17:23:23Z
+    Message:               MongoDB ops request is reconfiguring database
     Observed Generation:   1
-    Reason:                Scaling
+    Reason:                Reconfigure
     Status:                True
-    Type:                  Scaling
-    Last Transition Time:  2020-08-26T15:30:19Z
-    Message:               Successfully Reconfigured mongodb
+    Type:                  Reconfigure
+    Last Transition Time:  2020-09-29T17:24:08Z
+    Message:               Successfully Reconfigured MongoDB
+    Observed Generation:   1
+    Reason:                ReconfigureMongos
+    Status:                True
+    Type:                  ReconfigureMongos
+    Last Transition Time:  2020-09-29T17:24:58Z
+    Message:               Successfully Reconfigured MongoDB
+    Observed Generation:   1
+    Reason:                ReconfigureConfigServer
+    Status:                True
+    Type:                  ReconfigureConfigServer
+    Last Transition Time:  2020-09-29T17:27:08Z
+    Message:               Successfully Reconfigured MongoDB
     Observed Generation:   1
     Reason:                ReconfigureShard
     Status:                True
     Type:                  ReconfigureShard
-    Last Transition Time:  2020-08-26T15:30:19Z
-    Message:               Succefully Resumed mongodb: mg-sharding
+    Last Transition Time:  2020-09-29T17:27:08Z
+    Message:               Successfully Resumed mongodb: mg-sharding
     Observed Generation:   1
     Reason:                ResumeDatabase
     Status:                True
     Type:                  ResumeDatabase
-    Last Transition Time:  2020-08-26T15:30:19Z
+    Last Transition Time:  2020-09-29T17:27:08Z
     Message:               Successfully completed the modification process.
     Observed Generation:   1
     Reason:                Successful
@@ -574,80 +596,52 @@ Status:
   Observed Generation:     1
   Phase:                   Successful
 Events:
-  Type    Reason            Age   From                        Message
-  ----    ------            ----  ----                        -------
-  Normal  ReconfigureShard  59s   KubeDB Enterprise Operator  Successfully Reconfigured mongodb
-  Normal  ResumeDatabase    59s   KubeDB Enterprise Operator  Resuming MongoDB
-  Normal  ResumeDatabase    59s   KubeDB Enterprise Operator  Successfully Started Balancer
-  Normal  Successful        59s   KubeDB Enterprise Operator  Successfully Reconfigured Database
+  Type    Reason                   Age   From                        Message
+  ----    ------                   ----  ----                        -------
+  Normal  ReconfigureMongos        16m   KubeDB Enterprise Operator  Successfully Reconfigured MongoDB
+  Normal  ReconfigureConfigServer  15m   KubeDB Enterprise Operator  Successfully Reconfigured MongoDB
+  Normal  ReconfigureShard         13m   KubeDB Enterprise Operator  Successfully Reconfigured MongoDB
+  Normal  ResumeDatabase           13m   KubeDB Enterprise Operator  Resuming MongoDB
+  Normal  ResumeDatabase           13m   KubeDB Enterprise Operator  Successfully Started Balancer
+  Normal  Successful               13m   KubeDB Enterprise Operator  Successfully Reconfigured Database
+  Normal  Successful               13m   KubeDB Enterprise Operator  Successfully Reconfigured Database
 ```
 
-Now let's connect to a mongodb instance and run a mongodb internal command to check the new configuration we have provided.
+Now let's connect to a mongodb instance from each type of nodes and run a mongodb internal command to check the new configuration we have provided.
 
 ```console
-$ kubectl exec -n demo  mg-sharding-shard0-0  -- mongo admin -u root -p xBC-EwMFivFCgUlK --eval "db._adminCommand( {getCmdLineOpts: 1})" --quiet
-{
-	"argv" : [
-		"mongod",
-		"--dbpath=/data/db",
-		"--auth",
-		"--bind_ip=0.0.0.0",
-		"--port=27017",
-		"--shardsvr",
-		"--replSet=shard0",
-		"--clusterAuthMode=keyFile",
-		"--keyFile=/data/configdb/key.txt",
-		"--sslMode=disabled",
-		"--config=/data/configdb/mongod.conf"
-	],
-	"parsed" : {
-		"config" : "/data/configdb/mongod.conf",
-		"net" : {
-			"bindIp" : "0.0.0.0",
-			"maxIncomingConnections" : 30000,
-			"port" : 27017,
-			"ssl" : {
-				"mode" : "disabled"
-			}
-		},
-		"replication" : {
-			"replSet" : "shard0"
-		},
-		"security" : {
-			"authorization" : "enabled",
-			"clusterAuthMode" : "keyFile",
-			"keyFile" : "/data/configdb/key.txt"
-		},
-		"sharding" : {
-			"clusterRole" : "shardsvr"
-		},
-		"storage" : {
-			"dbPath" : "/data/db"
-		}
-	},
-	"ok" : 1,
-	"operationTime" : Timestamp(1598455890, 1),
-	"$gleStats" : {
-		"lastOpTime" : Timestamp(0, 0),
-		"electionId" : ObjectId("7fffffff0000000000000006")
-	},
-	"$configServerState" : {
-		"opTime" : {
-			"ts" : Timestamp(1598455892, 1),
-			"t" : NumberLong(2)
-		}
-	},
-	"$clusterTime" : {
-		"clusterTime" : Timestamp(1598455894, 1),
-		"signature" : {
-			"hash" : BinData(0,"nCP+UwSfVmrb2oLj0bsXM8wcuWQ="),
-			"keyId" : NumberLong("6865309861773574160")
-		}
-	}
-}
+$ kubectl exec -n demo  mg-sharding-mongos-0  -- mongo admin -u root -p Dv8F55zVNiEkhHM6 --eval "db._adminCommand( {getCmdLineOpts: 1}).parsed.net" --quiet
+  {
+  	"bindIp" : "0.0.0.0",
+  	"maxIncomingConnections" : 30000,
+  	"port" : 27017,
+  	"ssl" : {
+  		"mode" : "disabled"
+  	}
+  }
+
+$ kubectl exec -n demo  mg-sharding-configsvr-0  -- mongo admin -u root -p Dv8F55zVNiEkhHM6 --eval "db._adminCommand( {getCmdLineOpts: 1}).parsed.net" --quiet
+  {
+  	"bindIp" : "0.0.0.0",
+  	"maxIncomingConnections" : 30000,
+  	"port" : 27017,
+  	"ssl" : {
+  		"mode" : "disabled"
+  	}
+  }
+
+$ kubectl exec -n demo  mg-sharding-shard0-0  -- mongo admin -u root -p Dv8F55zVNiEkhHM6 --eval "db._adminCommand( {getCmdLineOpts: 1}).parsed.net" --quiet
+  {
+  	"bindIp" : "0.0.0.0",
+  	"maxIncomingConnections" : 30000,
+  	"port" : 27017,
+  	"ssl" : {
+  		"mode" : "disabled"
+  	}
+  }
 ```
 
-As we can see from the configuration of running mongodb, the value of `maxIncomingConnections` has been changed from `20000` to `30000`. So the reconfiguration of the database using the data field is successful.
+As we can see from the configuration of running mongodb, the value of `maxIncomingConnections` has been changed from `20000` to `30000` in all nodes. So the reconfiguration of the database using the data field is successful.
 
 ## Cleaning Up
 

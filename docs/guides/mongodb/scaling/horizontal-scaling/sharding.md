@@ -1,14 +1,15 @@
 ---
-title: Horizontal Scaling MongoDB Sharded Database (Shard)
+title: Horizontal Scaling MongoDB Shard
 menu:
   docs_{{ .version }}:
     identifier: mg-horizontal-scaling-shard
-    name: Shard
-    parent:  mg-horizontal-scaling-sharding
-    weight: 10
+    name: Replicaset
+    parent:  mg-horizontal-scaling
+    weight: 20
 menu_name: docs_{{ .version }}
 section_menu_id: guides
 ---
+
 
 {{< notice type="warning" message="This is an Enterprise-only feature. Please install [KubeDB Enterprise Edition](/docs/setup/install/enterprise.md) to try this feature." >}}
 
@@ -91,6 +92,8 @@ $ kubectl get mg -n demo
 NAME          VERSION    STATUS    AGE
 mg-sharding   3.6.8-v1   Running   10m
 ```
+
+##### Verify Number of Shard and Shard Replicas
 
 Let's check the number of shards this database from the MongoDB object and the number of statefulsets it has,
 
@@ -231,11 +234,129 @@ $ kubectl exec -n demo  mg-sharding-shard0-0  -- mongo admin -u root -p xBC-EwMF
 
 We can see from the above output that the number of replica is 2.
 
-We are now ready to apply the `MongoDBOpsRequest` CR to update scale up and down the shards of the database.
+##### Verify Number of ConfigServer
+
+Let's check the number of replicas this database has from the MongoDB object, number of pods the statefulset have,
+
+```console
+$ kubectl get mongodb -n demo mg-sharding -o json | jq '.spec.shardTopology.configServer.replicas'                                                                                           11:02:09
+2
+
+$ kubectl get sts -n demo mg-sharding-configsvr -o json | jq '.spec.replicas'                                                                                                11:03:27
+2
+```
+
+We can see from both command that the database has `2` replicas in the configServer. 
+
+Now let's connect to a mongodb instance and run a mongodb internal command to check the number of replicas,
+
+```console
+$ kubectl exec -n demo  mg-sharding-configsvr-0  -- mongo admin -u root -p xBC-EwMFivFCgUlK --eval "db.adminCommand( { replSetGetStatus : 1 } ).members" --quiet     15:37:23
+  
+  [
+  	{
+  		"_id" : 0,
+  		"name" : "mg-sharding-configsvr-0.mg-sharding-configsvr-gvr.demo.svc.cluster.local:27017",
+  		"health" : 1,
+  		"state" : 1,
+  		"stateStr" : "PRIMARY",
+  		"uptime" : 388,
+  		"optime" : {
+  			"ts" : Timestamp(1598434641, 2),
+  			"t" : NumberLong(2)
+  		},
+  		"optimeDate" : ISODate("2020-08-26T09:37:21Z"),
+  		"syncingTo" : "",
+  		"syncSourceHost" : "",
+  		"syncSourceId" : -1,
+  		"infoMessage" : "",
+  		"electionTime" : Timestamp(1598434260, 1),
+  		"electionDate" : ISODate("2020-08-26T09:31:00Z"),
+  		"configVersion" : 2,
+  		"self" : true,
+  		"lastHeartbeatMessage" : ""
+  	},
+  	{
+  		"_id" : 1,
+  		"name" : "mg-sharding-configsvr-1.mg-sharding-configsvr-gvr.demo.svc.cluster.local:27017",
+  		"health" : 1,
+  		"state" : 2,
+  		"stateStr" : "SECONDARY",
+  		"uptime" : 360,
+  		"optime" : {
+  			"ts" : Timestamp(1598434641, 2),
+  			"t" : NumberLong(2)
+  		},
+  		"optimeDurable" : {
+  			"ts" : Timestamp(1598434641, 2),
+  			"t" : NumberLong(2)
+  		},
+  		"optimeDate" : ISODate("2020-08-26T09:37:21Z"),
+  		"optimeDurableDate" : ISODate("2020-08-26T09:37:21Z"),
+  		"lastHeartbeat" : ISODate("2020-08-26T09:37:24.731Z"),
+  		"lastHeartbeatRecv" : ISODate("2020-08-26T09:37:23.295Z"),
+  		"pingMs" : NumberLong(0),
+  		"lastHeartbeatMessage" : "",
+  		"syncingTo" : "mg-sharding-configsvr-0.mg-sharding-configsvr-gvr.demo.svc.cluster.local:27017",
+  		"syncSourceHost" : "mg-sharding-configsvr-0.mg-sharding-configsvr-gvr.demo.svc.cluster.local:27017",
+  		"syncSourceId" : 0,
+  		"infoMessage" : "",
+  		"configVersion" : 2
+  	}
+  ]
+```
+
+We can see from the above output that the configServer has 2 nodes.
+
+##### Verify Number of Mongos
+Let's check the number of replicas this database has from the MongoDB object, number of pods the statefulset have,
+
+```console
+$ kubectl get mongodb -n demo mg-sharding -o json | jq '.spec.shardTopology.mongos.replicas'                                                                                           11:02:09
+2
+
+$ kubectl get sts -n demo mg-sharding-mongos -o json | jq '.spec.replicas'                                                                                                11:03:27
+2
+```
+
+We can see from both command that the database has `2` replicas in the mongos. 
+
+Now let's connect to a mongodb instance and run a mongodb internal command to check the number of replicas,
+
+```console
+$ kubectl exec -n demo  mg-sharding-mongos-0  -- mongo admin -u root -p xBC-EwMFivFCgUlK --eval "sh.status()" --quiet
+ --- Sharding Status --- 
+    sharding version: {
+    	"_id" : 1,
+    	"minCompatibleVersion" : 5,
+    	"currentVersion" : 6,
+    	"clusterId" : ObjectId("5f463327bd21df369bb338bc")
+    }
+    shards:
+          {  "_id" : "shard0",  "host" : "shard0/mg-sharding-shard0-0.mg-sharding-shard0-gvr.demo.svc.cluster.local:27017,mg-sharding-shard0-1.mg-sharding-shard0-gvr.demo.svc.cluster.local:27017",  "state" : 1 }
+          {  "_id" : "shard1",  "host" : "shard1/mg-sharding-shard1-0.mg-sharding-shard1-gvr.demo.svc.cluster.local:27017,mg-sharding-shard1-1.mg-sharding-shard1-gvr.demo.svc.cluster.local:27017",  "state" : 1 }
+          {  "_id" : "shard2",  "host" : "shard2/mg-sharding-shard2-0.mg-sharding-shard2-gvr.demo.svc.cluster.local:27017,mg-sharding-shard2-1.mg-sharding-shard2-gvr.demo.svc.cluster.local:27017",  "state" : 1 }
+    active mongoses:
+          "3.6.8" : 2
+    autosplit:
+          Currently enabled: yes
+    balancer:
+          Currently enabled:  yes
+          Currently running:  no
+          Failed balancer rounds in last 5 attempts:  0
+          Migration Results for the last 24 hours: 
+                  No recent migrations
+    databases:
+          {  "_id" : "config",  "primary" : "config",  "partitioned" : true }
+```
+
+We can see from the above output that the mongos has 2 active nodes.
+
+We are now ready to apply the `MongoDBOpsRequest` CR to update scale up and down all the components of the database.
 
 ### Scale Up
 
-Here, we are going to scale up both the shard and their replicas to meet the desired number of replicas after scaling.
+Here, we are going to scale up all the components of the database to meet the desired number of replicas after scaling.
 
 #### Create MongoDBOpsRequest
 
@@ -255,6 +376,10 @@ spec:
     shard: 
       shards: 4
       replicas: 3
+    mongos:
+      replicas: 3
+    configServer:
+      replicas: 3
 ```
 
 Here,
@@ -263,6 +388,10 @@ Here,
 - `spec.type` specifies that we are performing `HorizontalScaling` on our database.
 - `spec.horizontalScaling.shard.shards` specifies the desired number of shards after scaling.
 - `spec.horizontalScaling.shard.replicas` specifies the desired number of replicas of each shard after scaling.
+- `spec.horizontalScaling.mongos.replicas` specifies the desired replicas after scaling.
+- `spec.horizontalScaling.configServer.replicas` specifies the desired replicas after scaling.
+
+> **Note:** If you don't want to scale all the components together, you can only specify the components (shard, configServer and mongos) that you want to scale.
 
 Let's create the `MongoDBOpsRequest` CR we have shown above,
 
@@ -288,149 +417,141 @@ We can see from the above output that the `MongoDBOpsRequest` has succeeded. If 
 
 ```console
 $ kubectl describe mongodbopsrequest -n demo mops-hscale-up-shard                     
- Name:         mops-hscale-up-shard
- Namespace:    demo
- Labels:       <none>
- Annotations:  API Version:  ops.kubedb.com/v1alpha1
- Kind:         MongoDBOpsRequest
- Metadata:
-   Creation Timestamp:  2020-08-26T06:44:58Z
-   Finalizers:
-     kubedb.com
-   Generation:  1
-   Managed Fields:
-     API Version:  ops.kubedb.com/v1alpha1
-     Fields Type:  FieldsV1
-     fieldsV1:
-       f:metadata:
-         f:annotations:
-           .:
-           f:kubectl.kubernetes.io/last-applied-configuration:
-       f:spec:
-         .:
-         f:databaseRef:
-           .:
-           f:name:
-         f:horizontalScaling:
-           .:
-           f:shard:
-             .:
-             f:replicas:
-             f:shards:
-         f:type:
-     Manager:      kubectl
-     Operation:    Update
-     Time:         2020-08-26T06:44:58Z
-     API Version:  ops.kubedb.com/v1alpha1
-     Fields Type:  FieldsV1
-     fieldsV1:
-       f:metadata:
-         f:finalizers:
-       f:status:
-         .:
-         f:conditions:
-         f:observedGeneration:
-         f:phase:
-     Manager:         kubedb-enterprise
-     Operation:       Update
-     Time:            2020-08-26T06:49:35Z
-   Resource Version:  5748416
-   Self Link:         /apis/ops.kubedb.com/v1alpha1/namespaces/demo/mongodbopsrequests/mops-hscale-up-shard
-   UID:               0039a5ca-cd84-44f6-9f4a-295e959244b5
- Spec:
-   Database Ref:
-     Name:  mg-sharding
-   Horizontal Scaling:
-     Shard:
-       Replicas:  3
-       Shards:    4
-   Type:          HorizontalScaling
- Status:
-   Conditions:
-     Last Transition Time:  2020-08-26T06:44:58Z
-     Message:               MongoDB ops request is being processed
-     Observed Generation:   1
-     Reason:                Scaling
-     Status:                True
-     Type:                  Scaling
-     Last Transition Time:  2020-08-26T06:46:39Z
-     Message:               Successfully Scaled Up Shards
-     Observed Generation:   1
-     Reason:                ScaleUpShard
-     Status:                True
-     Type:                  ScaleUpShard
-     Last Transition Time:  2020-08-26T06:46:39Z
-     Message:               Successfully paused mongodb: mg-sharding
-     Observed Generation:   1
-     Reason:                PauseDatabase
-     Status:                True
-     Type:                  PauseDatabase
-     Last Transition Time:  2020-08-26T06:49:34Z
-     Message:               Successfully Scaled Up Replicas of StatefulSet
-     Observed Generation:   1
-     Reason:                ScaleUpShardReplicas
-     Status:                True
-     Type:                  ScaleUpShardReplicas
-     Last Transition Time:  2020-08-26T06:49:35Z
-     Message:               Successfully Resumed mongodb: mg-sharding
-     Observed Generation:   1
-     Reason:                ResumeDatabase
-     Status:                True
-     Type:                  ResumeDatabase
-     Last Transition Time:  2020-08-26T06:49:35Z
-     Message:               Successfully completed the modification process
-     Observed Generation:   1
-     Reason:                Successful
-     Status:                True
-     Type:                  Successful
-   Observed Generation:     1
-   Phase:                   Successful
- Events:
-   Type    Reason                Age    From                        Message
-   ----    ------                ----   ----                        -------
-   Normal  Progressing           10m    KubeDB Enterprise Operator  Successfully updated StatefulSets Resources
-   Normal  Progressing           9m53s  KubeDB Enterprise Operator  Successfully updated StatefulSets Resources
-   Normal  PauseDatabase         8m38s  KubeDB Enterprise Operator  Pausing Mongodb mg-sharding in Namespace demo
-   Normal  PauseDatabase         8m38s  KubeDB Enterprise Operator  Successfully Paused Mongodb mg-sharding in Namespace demo
-   Normal  ScalingUp             8m38s  KubeDB Enterprise Operator  Successfully Scaled Up Shards
-   Normal  ScalingUp             7m48s  KubeDB Enterprise Operator  Successfully Scaled Up Replicas of StatefulSet mg-sharding-shard0
-   Normal  ScalingUp             7m18s  KubeDB Enterprise Operator  Successfully Scaled Up Replicas of StatefulSet mg-sharding-shard0
-   Normal  ScalingUp             7m13s  KubeDB Enterprise Operator  Successfully Scaled Up Replicas of StatefulSet mg-sharding-shard0
-   Normal  ScalingUp             7m8s   KubeDB Enterprise Operator  Successfully Scaled Up Replicas of StatefulSet mg-sharding-shard1
-   Normal  ScalingUp             7m8s   KubeDB Enterprise Operator  Successfully Scaled Up Replicas of StatefulSet mg-sharding-shard0
-   Normal  ScalingUp             6m38s  KubeDB Enterprise Operator  Successfully Scaled Up Replicas of StatefulSet mg-sharding-shard0
-   Normal  ScalingUp             6m37s  KubeDB Enterprise Operator  Successfully Scaled Up Replicas of StatefulSet mg-sharding-shard1
-   Normal  ScalingUp             6m33s  KubeDB Enterprise Operator  Successfully Scaled Up Replicas of StatefulSet mg-sharding-shard0
-   Normal  ScalingUp             6m33s  KubeDB Enterprise Operator  Successfully Scaled Up Replicas of StatefulSet mg-sharding-shard1
-   Normal  ScalingUp             6m29s  KubeDB Enterprise Operator  Successfully Scaled Up Replicas of StatefulSet mg-sharding-shard2
-   Normal  ScalingUp             5m59s  KubeDB Enterprise Operator  Successfully Scaled Up Replicas of StatefulSet mg-sharding-shard0
-   Normal  ScalingUp             5m58s  KubeDB Enterprise Operator  Successfully Scaled Up Replicas of StatefulSet mg-sharding-shard2
-   Normal  ScalingUp             5m58s  KubeDB Enterprise Operator  Successfully Scaled Up Replicas of StatefulSet mg-sharding-shard1
-   Normal  ScalingUp             5m58s  KubeDB Enterprise Operator  Successfully Scaled Up Replicas of StatefulSet mg-sharding-shard0
-   Normal  ScalingUp             5m58s  KubeDB Enterprise Operator  Successfully Scaled Up Replicas of StatefulSet mg-sharding-shard1
-   Normal  ScalingUp             5m58s  KubeDB Enterprise Operator  Successfully Scaled Up Replicas of StatefulSet mg-sharding-shard2
-   Normal  ScalingUp             5m53s  KubeDB Enterprise Operator  Successfully Scaled Up Replicas of StatefulSet mg-sharding-shard0
-   Normal  ScalingUp             5m53s  KubeDB Enterprise Operator  Successfully Scaled Up Replicas of StatefulSet mg-sharding-shard1
-   Normal  ScalingUp             5m50s  KubeDB Enterprise Operator  Successfully Scaled Up Replicas of StatefulSet mg-sharding-shard2
-   Normal  ScalingUp             5m48s  KubeDB Enterprise Operator  Successfully Scaled Up Replicas of StatefulSet mg-sharding-shard0
-   Normal  ScalingUp             5m48s  KubeDB Enterprise Operator  Successfully Scaled Up Replicas of StatefulSet mg-sharding-shard1
-   Normal  ScalingUp             5m48s  KubeDB Enterprise Operator  Successfully Scaled Up Replicas of StatefulSet mg-sharding-shard2
-   Normal  ScalingUp             5m43s  KubeDB Enterprise Operator  Successfully Scaled Up Replicas of StatefulSet mg-sharding-shard1
-   Normal  ScalingUp             5m43s  KubeDB Enterprise Operator  Successfully Scaled Up Replicas of StatefulSet mg-sharding-shard0
-   Normal  ScalingUp             5m43s  KubeDB Enterprise Operator  Successfully Scaled Up Replicas of StatefulSet mg-sharding-shard2
-   Normal  ScalingUp             5m43s  KubeDB Enterprise Operator  Successfully Scaled Up Replicas of StatefulSet mg-sharding-shard3
-   Normal  ScaleUpShardReplicas  5m43s  KubeDB Enterprise Operator  Successfully Scaled Up Replicas of StatefulSet
-   Normal  ResumeDatabase        5m42s  KubeDB Enterprise Operator  Resuming MongoDB
-   Normal  ResumeDatabase        5m42s  KubeDB Enterprise Operator  Successfully Resumed mongodb
-   Normal  Successful            5m42s  KubeDB Enterprise Operator  Successfully Scaled Database
+Name:         mops-hscale-up-shard
+Namespace:    demo
+Labels:       <none>
+Annotations:  <none>
+API Version:  ops.kubedb.com/v1alpha1
+Kind:         MongoDBOpsRequest
+Metadata:
+  Creation Timestamp:  2020-09-30T05:36:41Z
+  Generation:          1
+  Managed Fields:
+    API Version:  ops.kubedb.com/v1alpha1
+    Fields Type:  FieldsV1
+    fieldsV1:
+      f:metadata:
+        f:annotations:
+          .:
+          f:kubectl.kubernetes.io/last-applied-configuration:
+      f:spec:
+        .:
+        f:databaseRef:
+          .:
+          f:name:
+        f:horizontalScaling:
+          .:
+          f:configServer:
+            .:
+            f:replicas:
+          f:mongos:
+            .:
+            f:replicas:
+          f:shard:
+            .:
+            f:replicas:
+            f:shards:
+        f:type:
+    Manager:      kubectl-client-side-apply
+    Operation:    Update
+    Time:         2020-09-30T05:36:41Z
+    API Version:  ops.kubedb.com/v1alpha1
+    Fields Type:  FieldsV1
+    fieldsV1:
+      f:status:
+        .:
+        f:conditions:
+        f:observedGeneration:
+        f:phase:
+    Manager:         kubedb-enterprise
+    Operation:       Update
+    Time:            2020-09-30T05:45:58Z
+  Resource Version:  1889687
+  Self Link:         /apis/ops.kubedb.com/v1alpha1/namespaces/demo/mongodbopsrequests/mops-hscale-up-shard
+  UID:               5dd83c5d-81e1-494d-92c3-5dcbd8ebcaf2
+Spec:
+  Database Ref:
+    Name:  mg-sharding
+  Horizontal Scaling:
+    Config Server:
+      Replicas:  3
+    Mongos:
+      Replicas:  3
+    Shard:
+      Replicas:  3
+      Shards:    4
+  Type:          HorizontalScaling
+Status:
+  Conditions:
+    Last Transition Time:  2020-09-30T05:36:41Z
+    Message:               MongoDB ops request is horizontally scaling database
+    Observed Generation:   1
+    Reason:                HorizontalScaling
+    Status:                True
+    Type:                  HorizontalScaling
+    Last Transition Time:  2020-09-30T05:45:58Z
+    Message:               Successfully Resumed mongodb: mg-sharding
+    Observed Generation:   1
+    Reason:                PauseDatabase
+    Status:                False
+    Type:                  PauseDatabase
+    Last Transition Time:  2020-09-30T05:38:31Z
+    Message:               Successfully Horizontally Scaled Up Shard Replicas
+    Observed Generation:   1
+    Reason:                ScaleUpShardReplicas
+    Status:                True
+    Type:                  ScaleUpShardReplicas
+    Last Transition Time:  2020-09-30T05:40:31Z
+    Message:               Successfully Horizontally Scaled Up Shard
+    Observed Generation:   1
+    Reason:                ScaleUpShard
+    Status:                True
+    Type:                  ScaleUpShard
+    Last Transition Time:  2020-09-30T05:45:43Z
+    Message:               Successfully Horizontally Scaled Up ConfigServer
+    Observed Generation:   1
+    Reason:                ScaleUpConfigServer 
+    Status:                True
+    Type:                  ScaleUpConfigServer 
+    Last Transition Time:  2020-09-30T05:45:58Z
+    Message:               Successfully Horizontally Scaled Mongos
+    Observed Generation:   1
+    Reason:                ScaleMongos
+    Status:                True
+    Type:                  ScaleMongos
+    Last Transition Time:  2020-09-30T05:45:58Z
+    Message:               Successfully Horizontally Scaled MongoDB
+    Observed Generation:   1
+    Reason:                Successful
+    Status:                True
+    Type:                  Successful
+  Observed Generation:     1
+  Phase:                   Successful
+Events:
+  Type    Reason                Age   From                        Message
+  ----    ------                ----  ----                        -------
+  Normal  PauseDatabase         54m   KubeDB Enterprise Operator  Pausing MongoDB mg-sharding in Namespace demo
+  Normal  PauseDatabase         54m   KubeDB Enterprise Operator  Successfully Paused MongoDB mg-sharding in Namespace demo
+  Normal  ScaleUpShard          50m   KubeDB Enterprise Operator  Successfully Horizontally Scaled Up Shard
+  Normal  PauseDatabase         50m   KubeDB Enterprise Operator  Pausing MongoDB mg-sharding in Namespace demo
+  Normal  PauseDatabase         50m   KubeDB Enterprise Operator  Successfully Paused MongoDB mg-sharding in Namespace demo
+  Normal  Progressing           50m   KubeDB Enterprise Operator  Successfully updated StatefulSets Resources
+  Normal  Progressing           49m   KubeDB Enterprise Operator  Successfully updated StatefulSets Resources
+  Normal  ScaleUpShard          49m   KubeDB Enterprise Operator  Successfully Horizontally Scaled Up Shard
+  Normal  ScaleUpConfigServer   45m   KubeDB Enterprise Operator  Successfully Horizontally Scaled Up ConfigServer
+  Normal  ScaleMongos           44m   KubeDB Enterprise Operator  Successfully Horizontally Scaled Mongos
+  Normal  ResumeDatabase        44m   KubeDB Enterprise Operator  Resuming MongoDB
+  Normal  ResumeDatabase        44m   KubeDB Enterprise Operator  Successfully Resumed mongodb
+  Normal  Successful            44m   KubeDB Enterprise Operator  Successfully Horizontally Scaled Database
 ```
+
+#### Verify Number of Shard and Shard Replicas
 
 Now, we are going to verify the number of shards this database has from the MongoDB object, number of statefulsets it has,
 
 ```console
 $ kubectl get mongodb -n demo mg-sharding -o json | jq '.spec.shardTopology.shard.shards'         
 4
-
 
 $ kubectl get sts -n demo                                                                      
 NAME                    READY   AGE
@@ -575,7 +696,152 @@ $ kubectl exec -n demo  mg-sharding-shard0-0  -- mongo admin -u root -p xBC-EwMF
 
 From all the above outputs we can see that the replicas of each shard has is `3`. 
 
-So, we have successfully scaled up both the shards and the shard replicas of the MongoDB database.
+#### Verify Number of ConfigServer Replicas
+Now, we are going to verify the number of replicas this database has from the MongoDB object, number of pods the statefulset have,
+
+```console
+$ kubectl get mongodb -n demo mg-sharding -o json | jq '.spec.shardTopology.configServer.replicas'                                                                                           11:02:09
+3
+
+$ kubectl get sts -n demo mg-sharding-configsvr -o json | jq '.spec.replicas'
+3
+```
+
+Now let's connect to a mongodb instance and run a mongodb internal command to check the number of replicas,
+```console
+$ kubectl exec -n demo  mg-sharding-configsvr-0  -- mongo admin -u root -p xBC-EwMFivFCgUlK --eval "db.adminCommand( { replSetGetStatus : 1 } ).members" --quiet
+  [
+  	{
+  		"_id" : 0,
+  		"name" : "mg-sharding-configsvr-0.mg-sharding-configsvr-gvr.demo.svc.cluster.local:27017",
+  		"health" : 1,
+  		"state" : 1,
+  		"stateStr" : "PRIMARY",
+  		"uptime" : 1058,
+  		"optime" : {
+  			"ts" : Timestamp(1598435313, 2),
+  			"t" : NumberLong(2)
+  		},
+  		"optimeDate" : ISODate("2020-08-26T09:48:33Z"),
+  		"syncingTo" : "",
+  		"syncSourceHost" : "",
+  		"syncSourceId" : -1,
+  		"infoMessage" : "",
+  		"electionTime" : Timestamp(1598434260, 1),
+  		"electionDate" : ISODate("2020-08-26T09:31:00Z"),
+  		"configVersion" : 3,
+  		"self" : true,
+  		"lastHeartbeatMessage" : ""
+  	},
+  	{
+  		"_id" : 1,
+  		"name" : "mg-sharding-configsvr-1.mg-sharding-configsvr-gvr.demo.svc.cluster.local:27017",
+  		"health" : 1,
+  		"state" : 2,
+  		"stateStr" : "SECONDARY",
+  		"uptime" : 1031,
+  		"optime" : {
+  			"ts" : Timestamp(1598435313, 2),
+  			"t" : NumberLong(2)
+  		},
+  		"optimeDurable" : {
+  			"ts" : Timestamp(1598435313, 2),
+  			"t" : NumberLong(2)
+  		},
+  		"optimeDate" : ISODate("2020-08-26T09:48:33Z"),
+  		"optimeDurableDate" : ISODate("2020-08-26T09:48:33Z"),
+  		"lastHeartbeat" : ISODate("2020-08-26T09:48:35.250Z"),
+  		"lastHeartbeatRecv" : ISODate("2020-08-26T09:48:34.860Z"),
+  		"pingMs" : NumberLong(0),
+  		"lastHeartbeatMessage" : "",
+  		"syncingTo" : "mg-sharding-configsvr-0.mg-sharding-configsvr-gvr.demo.svc.cluster.local:27017",
+  		"syncSourceHost" : "mg-sharding-configsvr-0.mg-sharding-configsvr-gvr.demo.svc.cluster.local:27017",
+  		"syncSourceId" : 0,
+  		"infoMessage" : "",
+  		"configVersion" : 3
+  	},
+  	{
+  		"_id" : 2,
+  		"name" : "mg-sharding-configsvr-2.mg-sharding-configsvr-gvr.demo.svc.cluster.local:27017",
+  		"health" : 1,
+  		"state" : 2,
+  		"stateStr" : "SECONDARY",
+  		"uptime" : 460,
+  		"optime" : {
+  			"ts" : Timestamp(1598435313, 2),
+  			"t" : NumberLong(2)
+  		},
+  		"optimeDurable" : {
+  			"ts" : Timestamp(1598435313, 2),
+  			"t" : NumberLong(2)
+  		},
+  		"optimeDate" : ISODate("2020-08-26T09:48:33Z"),
+  		"optimeDurableDate" : ISODate("2020-08-26T09:48:33Z"),
+  		"lastHeartbeat" : ISODate("2020-08-26T09:48:35.304Z"),
+  		"lastHeartbeatRecv" : ISODate("2020-08-26T09:48:34.729Z"),
+  		"pingMs" : NumberLong(0),
+  		"lastHeartbeatMessage" : "",
+  		"syncingTo" : "mg-sharding-configsvr-1.mg-sharding-configsvr-gvr.demo.svc.cluster.local:27017",
+  		"syncSourceHost" : "mg-sharding-configsvr-1.mg-sharding-configsvr-gvr.demo.svc.cluster.local:27017",
+  		"syncSourceId" : 1,
+  		"infoMessage" : "",
+  		"configVersion" : 3
+  	}
+  ]
+```
+
+From all the above outputs we can see that the replicas of the configServer is `3`. That means we have successfully scaled up the replicas of the MongoDB configServer replicas.
+
+#### Verify Number of Mongos Replicas
+Now, we are going to verify the number of replicas this database has from the MongoDB object, number of pods the statefulset have,
+
+```console
+$ kubectl get mongodb -n demo mg-sharding -o json | jq '.spec.shardTopology.mongos.replicas'                                                                                           11:02:09
+3
+
+$ kubectl get sts -n demo mg-sharding-mongos -o json | jq '.spec.replicas'
+3
+```
+
+Now let's connect to a mongodb instance and run a mongodb internal command to check the number of replicas,
+```console
+$ kubectl exec -n demo  mg-sharding-mongos-0  -- mongo admin -u root -p xBC-EwMFivFCgUlK --eval "sh.status()" --quiet
+  --- Sharding Status --- 
+    sharding version: {
+    	"_id" : 1,
+    	"minCompatibleVersion" : 5,
+    	"currentVersion" : 6,
+    	"clusterId" : ObjectId("5f463327bd21df369bb338bc")
+    }
+    shards:
+          {  "_id" : "shard0",  "host" : "shard0/mg-sharding-shard0-0.mg-sharding-shard0-gvr.demo.svc.cluster.local:27017,mg-sharding-shard0-1.mg-sharding-shard0-gvr.demo.svc.cluster.local:27017",  "state" : 1 }
+          {  "_id" : "shard1",  "host" : "shard1/mg-sharding-shard1-0.mg-sharding-shard1-gvr.demo.svc.cluster.local:27017,mg-sharding-shard1-1.mg-sharding-shard1-gvr.demo.svc.cluster.local:27017",  "state" : 1 }
+          {  "_id" : "shard2",  "host" : "shard2/mg-sharding-shard2-0.mg-sharding-shard2-gvr.demo.svc.cluster.local:27017,mg-sharding-shard2-1.mg-sharding-shard2-gvr.demo.svc.cluster.local:27017",  "state" : 1 }
+    active mongoses:
+          "3.6.8" : 3
+    autosplit:
+          Currently enabled: yes
+    balancer:
+          Currently enabled:  yes
+          Currently running:  no
+          Failed balancer rounds in last 5 attempts:  0
+          Migration Results for the last 24 hours: 
+                  No recent migrations
+    databases:
+          {  "_id" : "config",  "primary" : "config",  "partitioned" : true }
+                  config.system.sessions
+                          shard key: { "_id" : 1 }
+                          unique: false
+                          balancing: true
+                          chunks:
+                                  shard0	1
+                          { "_id" : { "$minKey" : 1 } } -->> { "_id" : { "$maxKey" : 1 } } on : shard0 Timestamp(1, 0)
+```
+
+From all the above outputs we can see that the replicas of the mongos is `3`. That means we have successfully scaled up the replicas of the MongoDB mongos replicas.
+
+
+So, we have successfully scaled up all the components of the MongoDB database.
 
 ### Scale Down
 
@@ -599,6 +865,10 @@ spec:
     shard: 
       shards: 3
       replicas: 2
+    mongos:
+      replicas: 2
+    configServer:
+      replicas: 2
 ```
 
 Here,
@@ -607,6 +877,10 @@ Here,
 - `spec.type` specifies that we are performing `HorizontalScaling` on our database.
 - `spec.horizontalScaling.shard.shards` specifies the desired number of shards after scaling.
 - `spec.horizontalScaling.shard.replicas` specifies the desired number of replicas of each shard after scaling.
+- `spec.horizontalScaling.configServer.replicas` specifies the desired replicas after scaling.
+- `spec.horizontalScaling.mongos.replicas` specifies the desired replicas after scaling.
+
+> **Note:** If you don't want to scale all the components together, you can only specify the components (shard, configServer and mongos) that you want to scale.
 
 Let's create the `MongoDBOpsRequest` CR we have shown above,
 
@@ -635,13 +909,12 @@ $ kubectl describe mongodbopsrequest -n demo mops-hscale-down-shard
  Name:         mops-hscale-down-shard
  Namespace:    demo
  Labels:       <none>
- Annotations:  API Version:  ops.kubedb.com/v1alpha1
+ Annotations:  <none>
+ API Version:  ops.kubedb.com/v1alpha1
  Kind:         MongoDBOpsRequest
  Metadata:
-   Creation Timestamp:  2020-08-26T07:10:26Z
-   Finalizers:
-     kubedb.com
-   Generation:  1
+   Creation Timestamp:  2020-09-30T07:03:52Z
+   Generation:          1
    Managed Fields:
      API Version:  ops.kubedb.com/v1alpha1
      Fields Type:  FieldsV1
@@ -657,19 +930,23 @@ $ kubectl describe mongodbopsrequest -n demo mops-hscale-down-shard
            f:name:
          f:horizontalScaling:
            .:
+           f:configServer:
+             .:
+             f:replicas:
+           f:mongos:
+             .:
+             f:replicas:
            f:shard:
              .:
              f:replicas:
              f:shards:
          f:type:
-     Manager:      kubectl
+     Manager:      kubectl-client-side-apply
      Operation:    Update
-     Time:         2020-08-26T07:10:26Z
+     Time:         2020-09-30T07:03:52Z
      API Version:  ops.kubedb.com/v1alpha1
      Fields Type:  FieldsV1
      fieldsV1:
-       f:metadata:
-         f:finalizers:
        f:status:
          .:
          f:conditions:
@@ -677,58 +954,68 @@ $ kubectl describe mongodbopsrequest -n demo mops-hscale-down-shard
          f:phase:
      Manager:         kubedb-enterprise
      Operation:       Update
-     Time:            2020-08-26T07:10:48Z
-   Resource Version:  5764724
+     Time:            2020-09-30T07:05:34Z
+   Resource Version:  1908351
    Self Link:         /apis/ops.kubedb.com/v1alpha1/namespaces/demo/mongodbopsrequests/mops-hscale-down-shard
-   UID:               092906f7-3b6f-41c6-ad62-1ca5d9f2b2bc
+   UID:               8edc1db9-a537-4bae-ac93-d1f5e9fcb758
  Spec:
    Database Ref:
      Name:  mg-sharding
    Horizontal Scaling:
+     Config Server:
+       Replicas:  2
+     Mongos:
+       Replicas:  2
      Shard:
        Replicas:  2
        Shards:    3
    Type:          HorizontalScaling
  Status:
    Conditions:
-     Last Transition Time:  2020-08-26T07:10:26Z
-     Message:               MongoDB ops request is being processed
+     Last Transition Time:  2020-09-30T07:03:52Z
+     Message:               MongoDB ops request is horizontally scaling database
      Observed Generation:   1
-     Reason:                Scaling
+     Reason:                HorizontalScaling
      Status:                True
-     Type:                  Scaling
-     Last Transition Time:  2020-08-26T07:10:26Z
+     Type:                  HorizontalScaling
+     Last Transition Time:  2020-09-30T07:05:34Z
      Message:               Successfully paused mongodb: mg-sharding
      Observed Generation:   1
      Reason:                PauseDatabase
      Status:                True
      Type:                  PauseDatabase
-     Last Transition Time:  2020-08-26T07:10:26Z
+     Last Transition Time:  2020-09-30T07:04:42Z
+     Message:               Successfully Horizontally Scaled Down Shard Replicas
+     Observed Generation:   1
+     Reason:                ScaleDownShardReplicas
+     Status:                True
+     Type:                  ScaleDownShardReplicas
+     Last Transition Time:  2020-09-30T07:04:42Z
      Message:               Successfully started mongodb load balancer
      Observed Generation:   1
      Reason:                StartingBalancer
      Status:                True
      Type:                  StartingBalancer
-     Last Transition Time:  2020-08-26T07:10:42Z
-     Message:               Successfully Scaled Down Shard
+     Last Transition Time:  2020-09-30T07:05:04Z
+     Message:               Successfully Horizontally Scaled Down Shard
      Observed Generation:   1
      Reason:                ScaleDownShard
      Status:                True
      Type:                  ScaleDownShard
-     Last Transition Time:  2020-08-26T07:10:48Z
-     Message:               Successfully Scale Down Replicas of StatefulSet
+     Last Transition Time:  2020-09-30T07:05:14Z
+     Message:               Successfully Horizontally Scaled Down ConfigServer
      Observed Generation:   1
-     Reason:                ScaleDownShardReplicas
+     Reason:                ScaleDownConfigServer 
      Status:                True
-     Type:                  ScaleDownShardReplicas
-     Last Transition Time:  2020-08-26T07:10:48Z
-     Message:               Successfully Resumed mongodb: mg-sharding
+     Type:                  ScaleDownConfigServer 
+     Last Transition Time:  2020-09-30T07:05:34Z
+     Message:               Successfully Horizontally Scaled Mongos
      Observed Generation:   1
-     Reason:                ResumeDatabase
+     Reason:                ScaleMongos
      Status:                True
-     Type:                  ResumeDatabase
-     Last Transition Time:  2020-08-26T07:10:48Z
-     Message:               Successfully completed the modification process
+     Type:                  ScaleMongos
+     Last Transition Time:  2020-09-30T07:05:34Z
+     Message:               Successfully Horizontally Scaled MongoDB
      Observed Generation:   1
      Reason:                Successful
      Status:                True
@@ -736,19 +1023,24 @@ $ kubectl describe mongodbopsrequest -n demo mops-hscale-down-shard
    Observed Generation:     1
    Phase:                   Successful
  Events:
-   Type    Reason                  Age   From                        Message
-   ----    ------                  ----  ----                        -------
-   Normal  PauseDatabase           2m4s  KubeDB Enterprise Operator  Pausing Mongodb mg-sharding in Namespace demo
-   Normal  PauseDatabase           2m4s  KubeDB Enterprise Operator  Successfully Paused Mongodb mg-sharding in Namespace demo
-   Normal  StartingBalancer        2m4s  KubeDB Enterprise Operator  Starting Balancer
-   Normal  StartingBalancer        2m4s  KubeDB Enterprise Operator  Successfully Started Balancer
-   Normal  ScaleDownShard          108s  KubeDB Enterprise Operator  Successfully Scaled Down Shard
-   Normal  ScalingDown             108s  KubeDB Enterprise Operator  Scaling Down Replicas of StatefulSet
-   Normal  ScaleDownShardReplicas  102s  KubeDB Enterprise Operator  Successfully Scale Down Replicas of StatefulSet
-   Normal  ResumeDatabase          102s  KubeDB Enterprise Operator  Resuming MongoDB
-   Normal  ResumeDatabase          102s  KubeDB Enterprise Operator  Successfully Resumed mongodb
-   Normal  Successful              102s  KubeDB Enterprise Operator  Successfully Scaled Database
+   Type    Reason                  Age    From                        Message
+   ----    ------                  ----   ----                        -------
+   Normal  PauseDatabase           2m17s  KubeDB Enterprise Operator  Pausing MongoDB mg-sharding in Namespace demo
+   Normal  PauseDatabase           2m17s  KubeDB Enterprise Operator  Successfully Paused MongoDB mg-sharding in Namespace demo
+   Normal  ScaleDownShardReplicas  87s    KubeDB Enterprise Operator  Successfully Horizontally Scaled Down Shard Replicas
+   Normal  StartingBalancer        87s    KubeDB Enterprise Operator  Starting Balancer
+   Normal  StartingBalancer        87s    KubeDB Enterprise Operator  Successfully Started Balancer
+   Normal  ScaleDownShard          65s    KubeDB Enterprise Operator  Successfully Horizontally Scaled Down Shard
+   Normal  ScaleDownConfigServer   55s    KubeDB Enterprise Operator  Successfully Horizontally Scaled Down ConfigServer
+   Normal  ScaleMongos             35s    KubeDB Enterprise Operator  Successfully Horizontally Scaled Mongos
+   Normal  ResumeDatabase          35s    KubeDB Enterprise Operator  Resuming MongoDB
+   Normal  ResumeDatabase          35s    KubeDB Enterprise Operator  Successfully Resumed mongodb
+   Normal  Successful              35s    KubeDB Enterprise Operator  Successfully Horizontally Scaled Database
+   Normal  PauseDatabase           35s    KubeDB Enterprise Operator  Pausing MongoDB mg-sharding in Namespace demo
+   Normal  PauseDatabase           35s    KubeDB Enterprise Operator  Successfully Paused MongoDB mg-sharding in Namespace demo
 ```
+
+##### Verify Number of Shard and Shard Replicas
 
 Now, we are going to verify the number of shards this database has from the MongoDB object, number of statefulsets it has,
 
@@ -870,7 +1162,126 @@ $ kubectl exec -n demo  mg-sharding-shard0-0  -- mongo admin -u root -p xBC-EwMF
 
 From all the above outputs we can see that the replicas of each shard has is `2`. 
 
-So, we have successfully scaled down both the shards and the shard replicas of the MongoDB database.
+##### Verify Number of ConfigServer Replicas
+
+Now, we are going to verify the number of replicas this database has from the MongoDB object, number of pods the statefulset have,
+
+```console
+$ kubectl get mongodb -n demo mg-sharding -o json | jq '.spec.shardTopology.configServer.replicas'                                                                                           11:02:09
+3
+
+$ kubectl get sts -n demo mg-sharding-configsvr -o json | jq '.spec.replicas'
+3
+```
+
+Now let's connect to a mongodb instance and run a mongodb internal command to check the number of replicas,
+```console
+$ kubectl exec -n demo  mg-sharding-configsvr-0  -- mongo admin -u root -p xBC-EwMFivFCgUlK --eval "db.adminCommand( { replSetGetStatus : 1 } ).members" --quiet
+[
+	{
+		"_id" : 0,
+		"name" : "mg-sharding-configsvr-0.mg-sharding-configsvr-gvr.demo.svc.cluster.local:27017",
+		"health" : 1,
+		"state" : 1,
+		"stateStr" : "PRIMARY",
+		"uptime" : 1316,
+		"optime" : {
+			"ts" : Timestamp(1598435569, 1),
+			"t" : NumberLong(2)
+		},
+		"optimeDate" : ISODate("2020-08-26T09:52:49Z"),
+		"syncingTo" : "",
+		"syncSourceHost" : "",
+		"syncSourceId" : -1,
+		"infoMessage" : "",
+		"electionTime" : Timestamp(1598434260, 1),
+		"electionDate" : ISODate("2020-08-26T09:31:00Z"),
+		"configVersion" : 4,
+		"self" : true,
+		"lastHeartbeatMessage" : ""
+	},
+	{
+		"_id" : 1,
+		"name" : "mg-sharding-configsvr-1.mg-sharding-configsvr-gvr.demo.svc.cluster.local:27017",
+		"health" : 1,
+		"state" : 2,
+		"stateStr" : "SECONDARY",
+		"uptime" : 1288,
+		"optime" : {
+			"ts" : Timestamp(1598435569, 1),
+			"t" : NumberLong(2)
+		},
+		"optimeDurable" : {
+			"ts" : Timestamp(1598435569, 1),
+			"t" : NumberLong(2)
+		},
+		"optimeDate" : ISODate("2020-08-26T09:52:49Z"),
+		"optimeDurableDate" : ISODate("2020-08-26T09:52:49Z"),
+		"lastHeartbeat" : ISODate("2020-08-26T09:52:52.348Z"),
+		"lastHeartbeatRecv" : ISODate("2020-08-26T09:52:52.347Z"),
+		"pingMs" : NumberLong(0),
+		"lastHeartbeatMessage" : "",
+		"syncingTo" : "mg-sharding-configsvr-0.mg-sharding-configsvr-gvr.demo.svc.cluster.local:27017",
+		"syncSourceHost" : "mg-sharding-configsvr-0.mg-sharding-configsvr-gvr.demo.svc.cluster.local:27017",
+		"syncSourceId" : 0,
+		"infoMessage" : "",
+		"configVersion" : 4
+	}
+]
+```
+
+From all the above outputs we can see that the replicas of the configServer is `2`. That means we have successfully scaled down the replicas of the MongoDB configServer replicas.
+
+##### Verify Number of Mongos Replicas
+
+Now, we are going to verify the number of replicas this database has from the MongoDB object, number of pods the statefulset have,
+
+```console
+$ kubectl get mongodb -n demo mg-sharding -o json | jq '.spec.shardTopology.mongos.replicas'                                                                                           11:02:09
+2
+
+$ kubectl get sts -n demo mg-sharding-mongos -o json | jq '.spec.replicas'
+2
+```
+
+Now let's connect to a mongodb instance and run a mongodb internal command to check the number of replicas,
+```console
+$ kubectl exec -n demo  mg-sharding-mongos-0  -- mongo admin -u root -p xBC-EwMFivFCgUlK --eval "sh.status()" --quiet
+--- Sharding Status --- 
+  sharding version: {
+  	"_id" : 1,
+  	"minCompatibleVersion" : 5,
+  	"currentVersion" : 6,
+  	"clusterId" : ObjectId("5f463327bd21df369bb338bc")
+  }
+  shards:
+        {  "_id" : "shard0",  "host" : "shard0/mg-sharding-shard0-0.mg-sharding-shard0-gvr.demo.svc.cluster.local:27017,mg-sharding-shard0-1.mg-sharding-shard0-gvr.demo.svc.cluster.local:27017",  "state" : 1 }
+        {  "_id" : "shard1",  "host" : "shard1/mg-sharding-shard1-0.mg-sharding-shard1-gvr.demo.svc.cluster.local:27017,mg-sharding-shard1-1.mg-sharding-shard1-gvr.demo.svc.cluster.local:27017",  "state" : 1 }
+        {  "_id" : "shard2",  "host" : "shard2/mg-sharding-shard2-0.mg-sharding-shard2-gvr.demo.svc.cluster.local:27017,mg-sharding-shard2-1.mg-sharding-shard2-gvr.demo.svc.cluster.local:27017",  "state" : 1 }
+  active mongoses:
+        "3.6.8" : 2
+  autosplit:
+        Currently enabled: yes
+  balancer:
+        Currently enabled:  yes
+        Currently running:  no
+        Failed balancer rounds in last 5 attempts:  0
+        Migration Results for the last 24 hours: 
+                No recent migrations
+  databases:
+        {  "_id" : "config",  "primary" : "config",  "partitioned" : true }
+                config.system.sessions
+                        shard key: { "_id" : 1 }
+                        unique: false
+                        balancing: true
+                        chunks:
+                                shard0	1
+                        { "_id" : { "$minKey" : 1 } } -->> { "_id" : { "$maxKey" : 1 } } on : shard0 Timestamp(1, 0)
+```
+
+From all the above outputs we can see that the replicas of the mongos is `2`. That means we have successfully scaled down the replicas of the MongoDB mongos replicas.
+
+So, we have successfully scaled down all the components of the MongoDB database.
 
 ## Cleaning Up
 
